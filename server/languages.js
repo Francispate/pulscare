@@ -1,12 +1,12 @@
 // PASTE AS: server/languages.js  (replaces the old file)  Day 3: stored in Supabase.
 // Languages people speak (patients and doctors). Used to show patients the doctors who speak their way.
-// The "languages" column and the 6 doctors' starting languages were created by schema.sql and the seed script on Day 2.
+// The "languages" column and the 6 doctors' starting languages were created by 01_schema.sql and the seed script on Day 2.
 const express = require('express');
 const db = require('./db');
 const activity = require('./activity');
 const { verifyToken } = require('./routes');
 
-const ALIASES = { english: 'English', hindi: 'Hindi', kannada: 'Kannada', 'हिन्दी': 'Hindi', 'हिंदी': 'Hindi', 'ಕನ್ನಡ': 'Kannada' };
+const ALIASES = { english: 'English', hindi: 'Hindi', kannada: 'Kannada', 'à¤¹à¤¿à¤¨à¥à¤¦à¥€': 'Hindi', 'à¤¹à¤¿à¤‚à¤¦à¥€': 'Hindi', 'à²•à²¨à³à²¨à²¡': 'Kannada' };
 
 // Clean what the user typed: letters only, no duplicates, nicely capitalised, at most 8 languages.
 function clean(list) {

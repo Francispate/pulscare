@@ -49,11 +49,11 @@ require('./notify').start(io);
   const ping = await supabase.from('doctors').select('id', { count: 'exact', head: true });
   if (ping.error) {
     console.error('\nCannot reach Supabase: ' + ping.error.message);
-    console.error('Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env, and that you ran supabase/schema.sql and supabase/day3.sql.\n');
+    console.error('Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env, and that you ran supabase/01_schema.sql and supabase/02_payment_function.sql.\n');
     process.exit(1);
   }
   try { await require('./db').refreshDisabled(); }
-  catch (e) { console.error('\nCould not read the doctors\' disabled flag: ' + e.message + '\nDid you run supabase/day11.sql in the Supabase SQL Editor?\n'); process.exit(1); }
+  catch (e) { console.error('\nCould not read the doctors\' disabled flag: ' + e.message + '\nDid you run supabase/10_admin_role.sql in the Supabase SQL Editor?\n'); process.exit(1); }
   const recheck = setInterval(() => require('./db').refreshDisabled().catch(() => {}), 30000); // also notices a change made by hand in Supabase
   if (recheck.unref) recheck.unref();
   server.listen(PORT, '0.0.0.0', () => {

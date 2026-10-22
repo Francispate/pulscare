@@ -36,7 +36,7 @@ async function waitForNote(token, kind, since, seconds = 6) {
     const adminPw = 'Check-' + crypto.randomBytes(6).toString('hex');
     const adminEmail = `admin-${stamp}@pulscare.test`, adminId = 'AD-T' + stamp.toUpperCase().slice(-5);
     const ia = await supabase.from('users').insert({ id: adminId, role: 'admin', full_name: 'Check Admin', email: adminEmail, password_hash: bcrypt.hashSync(adminPw, 10) });
-    if (ia.error) throw new Error('could not create the test admin: ' + ia.error.message + ' (did you run supabase/day11.sql?)');
+    if (ia.error) throw new Error('could not create the test admin: ' + ia.error.message + ' (did you run supabase/10_admin_role.sql?)');
     cleanup.users.push(adminId);
 
     const pt = await call('POST', '/auth/register', null, { fullName: 'Admin Check Patient', email: `p-${stamp}@pulscare.test`, password: 'patient123' });

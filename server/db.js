@@ -159,7 +159,7 @@ const getPayment = (id) => maybe(T('payments').select('*').eq('id', id));
 async function insertFailedPayment({ id, appointmentId, label, amount, ref, reason }) {
   must(await T('payments').insert({ id, appointment_id: appointmentId, method: label, amount, status: 'failed', txn_ref: ref, failure_reason: reason }));
 }
-// One database transaction (see supabase/day3.sql). Returns the new invoice number.
+// One database transaction (see supabase/02_payment_function.sql). Returns the new invoice number.
 async function completePayment({ payId, invId, apptId, label, amount, ref }) {
   const res = await supabase.rpc('complete_payment', { p_pay_id: payId, p_inv_id: invId, p_appt_id: apptId, p_label: label, p_amount: amount, p_ref: ref });
   if (res.error) {

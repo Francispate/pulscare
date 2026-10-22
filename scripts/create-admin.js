@@ -35,7 +35,7 @@ function ask(question, hidden) {
   const ins = await supabase.from('users').insert({ id, role: 'admin', full_name: name, email, password_hash: bcrypt.hashSync(pw, 10) });
   if (ins.error) {
     console.error('\nCould not create the admin: ' + ins.error.message);
-    if (/users_role_check|violates check/i.test(ins.error.message)) console.error('Run supabase/day11.sql in the Supabase SQL Editor first.');
+    if (/users_role_check|violates check/i.test(ins.error.message)) console.error('Run supabase/10_admin_role.sql in the Supabase SQL Editor first.');
     process.exit(1);
   }
   console.log(`\nAdmin created: ${name} (${id})\nLog in at http://localhost:${process.env.PORT || 3000}/admin.html with ${email}\n`);

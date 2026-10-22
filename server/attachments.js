@@ -17,7 +17,7 @@ fs.mkdirSync(DIR, { recursive: true });
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB per file
 const MAX_FILES = 12;               // per appointment
 
-// The attachments table is created by supabase/schema.sql (Day 2). Files themselves stay on this laptop in storage/attachments.
+// The attachments table is created by supabase/01_schema.sql (Day 2). Files themselves stay on this laptop in storage/attachments.
 const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // Allowed types. The safe content type is chosen by us from the extension, never taken from the browser.

@@ -2,7 +2,7 @@
 // Day 6: waiting queue. When a doctor is busy, a patient joins a queue instead of being rejected.
 // When the doctor ends the call, the first waiting patient gets a live "Doctor is ready. Join now" alert.
 // They have TURN_SECONDS to press Join now. If they do not, the next patient is called.
-// Fairness and safety rules live in the database (supabase/day6.sql): one active queue per patient, one patient called per doctor.
+// Fairness and safety rules live in the database (supabase/05_queue.sql): one active queue per patient, one patient called per doctor.
 const express = require('express');
 const crypto = require('crypto');
 const db = require('./db');

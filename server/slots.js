@@ -1,7 +1,7 @@
 // PASTE AS: server/slots.js  Day 11: slots of a disabled doctor cannot be seen or booked. Day 9: booking and cancellation alerts. (replaces the old file)
 // Day 5: doctor working hours, bookable slots, booking and cancelling.
 // All times a person sees are Indian Standard Time (IST, UTC+5:30). The database stores real moments in time (UTC).
-// Double booking is stopped inside the database (see supabase/day5.sql: book_slot), not here, so two patients clicking at
+// Double booking is stopped inside the database (see supabase/04_slots.sql: book_slot), not here, so two patients clicking at
 // the same instant can never both win.
 const express = require('express');
 const crypto = require('crypto');
