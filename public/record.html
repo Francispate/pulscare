@@ -1,0 +1,42 @@
+<!-- PASTE AS: public/record.html  (new file)  Day 10: the patient's medical record. A patient edits their own. A doctor opens it read-only with ?patient=ID. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Medical record | Pulscare</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="chrome"></div>
+<main class="wrap" style="max-width:900px">
+  <div class="row spread" style="margin-bottom:1rem">
+    <div><h1 style="font-size:1.9rem" id="rec-title">Medical record</h1><p class="muted" id="rec-sub"></p></div>
+    <a class="btn btn-ghost" id="rec-back" href="/index.html">Back</a>
+  </div>
+  <div id="rec"></div>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/record.js"></script>
+<script>
+(async function () {
+  if (!PC.token || !PC.user) { location.href = '/index.html'; return; }
+  const isDoctor = PC.user.role === 'doctor';
+  const pid = new URLSearchParams(location.search).get('patient');
+  if (isDoctor && !pid) { location.href = '/doctor.html'; return; }
+  PCUI.mount({ step: 0, active: 'record' });
+  document.getElementById('rec-back').href = isDoctor ? '/doctor.html' : '/patient.html';
+  document.getElementById('rec-back').textContent = isDoctor ? 'Back to my patients' : 'Back to my care';
+  const data = await PCRecord.mount(document.getElementById('rec'), { patientId: isDoctor ? pid : null, editable: !isDoctor });
+  if (data) {
+    document.getElementById('rec-title').textContent = isDoctor ? 'Record of ' + data.patient.name : 'My medical record';
+    document.getElementById('rec-sub').textContent = isDoctor ? 'Read-only' : 'Your allergies, conditions, reports and past consultations in one place.';
+  }
+})();
+</script>
+</body>
+</html>

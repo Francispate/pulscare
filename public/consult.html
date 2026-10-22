@@ -1,0 +1,667 @@
+<!-- PASTE AS: public/consult.html  (replaces the old file)  Day 10: the doctor can open the patient record inside the consult. -->
+<!-- PASTE AS: public/consult.html  (replaces the old file)  Day 7: chat key backup. Unlock panel in the chat card; old messages decrypt again after a reload. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Consultation room | Pulscare</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+Kannada:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="chrome"></div>
+<main class="wrap">
+  <div class="row spread" style="margin-bottom:.9rem">
+    <div><h1 style="font-size:1.6rem" id="title">Consultation room</h1><p class="muted small" id="subtitle"></p></div>
+    <span class="badge pending" id="conn">Connecting...</span>
+  </div>
+
+  <div class="room">
+    <section>
+      <div class="video-stage">
+        <div class="video-grid" id="video-grid">
+          <!-- Remote person (the other side of the call) -->
+          <div class="tile" id="tile-remote">
+            <video id="remote" autoplay playsinline></video>
+            <div class="waiting" id="waiting"><div>Waiting for the other person to join this room...</div></div>
+            <button class="btn btn-primary hidden" id="tap-play">Tap to start the video</button>
+            <div class="tile-label"><span class="dot" id="remote-dot"></span><b id="remote-name">Other person</b><small id="remote-role"></small></div>
+          </div>
+          <!-- You -->
+          <div class="tile" id="tile-local">
+            <video id="local" class="self" autoplay playsinline muted></video>
+            <div class="cam-off hidden" id="local-avatar"><div class="avatar" id="local-initials">?</div><span>Camera is off</span></div>
+            <div class="tile-label"><span class="dot live"></span><b id="local-name">You</b><small id="local-role"></small><span class="state" id="local-state"></span></div>
+          </div>
+        </div>
+        <div class="captions" id="captions"></div>
+      </div>
+      <div class="row" id="quick-row" style="margin:.5rem 0">
+        <input id="quick-caption" placeholder="Type a caption for the other person and press Enter" style="flex:1;min-width:140px" autocomplete="off" aria-label="Type a caption">
+        <button class="btn btn-primary btn-sm" id="btn-quick">Send</button>
+      </div>
+      <div class="controls">
+        <button class="btn btn-ghost btn-sm" id="btn-mic">Mute microphone</button>
+        <button class="btn btn-ghost btn-sm" id="btn-cam">Turn camera off</button>
+        <button class="btn btn-ghost btn-sm hidden" id="btn-flip">Use back camera</button>
+        <span class="small muted" id="media-note"></span>
+      </div>
+      <div class="card" style="margin-top:.8rem;padding:.8rem 1rem">
+        <div class="small"><b>Connection check</b></div>
+        <ul class="small" id="diag" style="list-style:none;margin-top:.3rem;display:grid;gap:.15rem"></ul>
+        <div class="small" style="margin-top:.6rem;display:grid;gap:.4rem">
+          <div>Your microphone (the bar moves when you speak)<div style="height:8px;border-radius:99px;background:#E3EAEE;overflow:hidden;margin-top:.2rem"><i id="lvl-me" style="display:block;height:100%;width:0;background:var(--teal)"></i></div></div>
+          <div>Sound from the other person<div style="height:8px;border-radius:99px;background:#E3EAEE;overflow:hidden;margin-top:.2rem"><i id="lvl-them" style="display:block;height:100%;width:0;background:var(--blue)"></i></div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1rem">
+        <div class="row spread"><h3>Live captions</h3><span class="badge pending" id="rec-state">Off</span></div>
+        <p class="small muted" style="margin-bottom:.8rem">Your speech becomes text in your browser and appears on the other person's screen while you speak. Everything said is kept in the <b>Captions panel</b>. Needs Chrome or Edge and internet.</p>
+        <div class="grid two">
+          <div class="field"><label for="speak-lang">I am speaking</label>
+            <select id="speak-lang">
+              <option value="en-IN">English</option><option value="hi-IN">हिन्दी (Hindi)</option><option value="kn-IN">ಕನ್ನಡ (Kannada)</option>
+              <option value="mr-IN">मराठी (Marathi)</option><option value="ta-IN">தமிழ் (Tamil)</option><option value="te-IN">తెలుగు (Telugu)</option>
+              <option value="ml-IN">മലയാളം (Malayalam)</option><option value="bn-IN">বাংলা (Bengali)</option><option value="gu-IN">ગુજરાતી (Gujarati)</option><option value="pa-IN">ਪੰਜਾਬੀ (Punjabi)</option>
+            </select></div>
+          <div class="field"><label for="cap-size">Caption size</label>
+            <select id="cap-size"><option value="0.9rem">Small</option><option value="1.05rem" selected>Medium</option><option value="1.4rem">Large</option><option value="1.8rem">Extra large</option></select></div>
+        </div>
+        <p class="small muted" style="margin:-.2rem 0 .6rem">If you mix languages, choose the one you speak most.</p>
+        <div class="row">
+          <button class="btn btn-primary btn-sm" id="btn-speech">Start my live captions</button>
+          <button class="btn btn-ghost btn-sm" id="btn-cap-panel">Open captions panel</button>
+        </div>
+        <div class="small" style="margin-top:.7rem;display:grid;gap:.2rem">
+          <div>Your captions: <b id="cap-me">off</b></div>
+          <div>Other person's captions: <b id="cap-peer">waiting for them to join</b></div>
+        </div>
+        <label class="row small" style="margin:.6rem 0 0;font-weight:500"><input type="checkbox" id="opt-captions" style="width:auto" checked> Show captions on the video</label>
+        <div class="row" style="margin-top:.7rem">
+          <input id="type-caption" placeholder="Or type here instead of speaking" style="flex:1;min-width:140px" autocomplete="off">
+          <button class="btn btn-ghost btn-sm" id="btn-type">Send</button>
+        </div>
+        <div class="msg" id="cap-msg"></div>
+        <div class="note-final"><b>Final version:</b> a managed speech service with a medical word list. Captions history can be saved to the patient record with consent.</div>
+      </div>
+    </section>
+
+    <aside style="display:grid;gap:1rem">
+      <div class="card">
+        <div class="row spread"><h3>Encrypted chat</h3><span class="small muted">Key check <span class="fp" id="fp">waiting</span></span></div>
+        <div class="card hidden" id="key-panel" style="background:var(--teal-wash);box-shadow:none;margin:.6rem 0"></div>
+        <div class="chat-box">
+          <div class="chat-log" id="chat-log"></div>
+          <div class="row" style="margin-top:.5rem;flex-wrap:nowrap">
+            <input id="chat-input" placeholder="Type a message" autocomplete="off" disabled>
+            <button class="btn btn-primary btn-sm" id="chat-send" disabled>Send</button>
+          </div>
+        </div>
+        <p class="small muted" style="margin-top:.5rem">Both people should see the same key check code. Messages are scrambled in the browser before they reach the server.</p>
+        <p class="small muted" style="margin-top:.4rem" id="key-note"></p>
+      </div>
+
+      <div id="att-mount"></div>
+
+      <div class="card hidden" id="rec-card">
+        <div class="row spread"><h3>Patient record</h3><button class="btn btn-ghost btn-sm" id="rec-toggle" aria-expanded="false">Open</button></div>
+        <p class="small muted" style="margin-top:.3rem">Allergies, conditions, reports and past visits, entered by the patient. Opening it is logged and the patient is told.</p>
+        <div id="rec-body" class="hidden" style="margin-top:.7rem"></div>
+      </div>
+
+      <div class="card hidden" id="rx-card">
+        <h3>Prescription (doctor only)</h3>
+        <p class="small muted" style="margin-bottom:.7rem">Saved now, released to the patient as a signed PDF after payment.</p>
+        <div class="field"><label for="rx-diag">Diagnosis or reason for visit</label><input id="rx-diag" placeholder="e.g. Viral fever"></div>
+        <div id="rx-rows"></div>
+        <button class="btn btn-ghost btn-sm" id="rx-add">Add medicine</button>
+        <div class="field" style="margin-top:.8rem"><label for="rx-notes">Instructions for the patient</label><textarea id="rx-notes" placeholder="e.g. Drink plenty of water and rest."></textarea></div>
+        <div class="row">
+          <button class="btn btn-ghost btn-sm" id="rx-save">Save prescription</button>
+          <button class="btn btn-danger btn-sm" id="btn-end">End call</button>
+        </div>
+        <div class="msg" id="rx-msg"></div>
+      </div>
+
+      <div class="card hidden" id="patient-card">
+        <h3>After the call</h3>
+        <p class="small">When the doctor ends the call, you are taken to payment. Your prescription and invoice are created as two separate documents once payment succeeds.</p>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/crypto.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/attachments.js"></script>
+<script src="/js/record.js"></script>
+<script>
+(async function () {
+  if (!PC.token) { location.href = '/index.html'; return; }
+  PCUI.mount({ step: 5, active: 'dash' });
+  const apptId = new URLSearchParams(location.search).get('a');
+  const isDoctor = PC.user.role === 'doctor';
+  const $ = (id) => document.getElementById(id);
+  const sock = PC.socket();
+  let appt, localStream, pc, pendingIce = [], micOn = true, camOn = true, camReal = false, micReal = false, relay = false, peerHere = false, connTimer = null;
+  let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  try { const cfg = await PC.api('GET', '/ice'); iceServers = cfg.iceServers; relay = cfg.relay; } catch (e) {}
+
+  // Plain-language connection check, so a missing picture can be explained on screen.
+  const D = { remote: 'no', audio: 'no', ice: 'new' };
+  function paintDiag() {
+    const rows = [];
+    rows.push(micReal ? ['ok', 'Your microphone is working.'] : ['bad', 'Your microphone is not available, so the other person cannot hear you. Allow microphone access (lock icon in the address bar) and reload.']);
+    rows.push(camReal ? ['ok', 'Your camera is working.'] : ['bad', 'Your camera is not available on this device, so the other person sees a placeholder. Allow camera access (lock icon in the address bar) and close other apps using the camera, then reload.']);
+    const here = peerHere || ['checking', 'connected', 'completed', 'failed', 'disconnected', 'timeout'].includes(D.ice);
+    if (!here) rows.push(['wait', 'Waiting for the other person to open this room.']);
+    else if (D.ice === 'connected' || D.ice === 'completed') rows.push(['ok', D.remote === 'yes' ? 'Connected. Their video is arriving.' : 'Connected, but their camera is not sending a picture. Ask them to allow camera access on their device.']), rows.push(D.audio === 'yes' ? ['ok', 'Their microphone is sending sound. If you hear nothing, turn up your device volume and press the video once.'] : ['bad', 'Connected, but no sound is arriving from them. Ask them to allow the microphone and not to mute it.']);
+    else if (D.ice === 'failed' || D.ice === 'disconnected' || D.ice === 'timeout') rows.push(['bad', 'The two devices cannot connect directly. Put both on the same Wi-Fi and reload this page on both. ' + (relay ? '' : 'If they must be on different networks, a relay (TURN) needs to be enabled on the server.')]);
+    else rows.push(['wait', 'Connecting the two devices...']);
+    document.getElementById('diag').innerHTML = rows.map(([k, t]) => `<li style="color:${k === 'ok' ? 'var(--teal-dark)' : k === 'bad' ? 'var(--coral)' : 'var(--muted)'}">${k === 'ok' ? 'OK: ' : k === 'bad' ? 'Problem: ' : 'Waiting: '}${PC.esc(t)}</li>`).join('');
+  }
+  paintDiag();
+
+  try { appt = await PC.api('GET', '/appointments/' + apptId); }
+  catch (e) { document.querySelector('main').innerHTML = `<div class="card"><h2>We could not open this room</h2><p>${PC.esc(e.message)}</p><a class="btn btn-primary" href="/${PC.user.role}.html">Back to dashboard</a></div>`; return; }
+  if (appt.status === 'awaiting_payment' && !isDoctor) { location.href = '/payment.html?a=' + apptId; return; }
+  if (appt.payment_status === 'paid') { location.href = isDoctor ? '/doctor.html' : '/patient.html#appts'; return; }
+
+  $('title').textContent = isDoctor ? `Consultation with ${appt.patient_name}` : `Consultation with ${appt.doctor_name}`;
+  $('subtitle').textContent = `${appt.department} · Appointment ${appt.id}`;
+  (isDoctor ? $('rx-card') : $('patient-card')).classList.remove('hidden');
+  if (isDoctor) {
+    // The record is only fetched when the doctor presses Open, so "your record was opened" is always true.
+    $('rec-card').classList.remove('hidden');
+    let recDone = false;
+    $('rec-toggle').onclick = async () => {
+      const body = $('rec-body'), closing = body.classList.toggle('hidden'); // true = just closed
+      $('rec-toggle').textContent = closing ? 'Open' : 'Hide'; $('rec-toggle').setAttribute('aria-expanded', String(!closing));
+      if (!closing && !recDone) recDone = !!(await PCRecord.mount(body, { patientId: appt.patient_id, compact: true }));
+    };
+  }
+
+  /* ---------- Two separate video tiles: doctor on the left, patient on the right (same on both screens) ---------- */
+  const remoteName = isDoctor ? appt.patient_name : appt.doctor_name;
+  const remoteRole = isDoctor ? 'Patient' : 'Doctor';
+  const localRole = isDoctor ? 'Doctor' : 'Patient';
+  $('remote-name').textContent = remoteName; $('remote-role').textContent = remoteRole;
+  $('local-name').textContent = 'You (' + PC.user.name + ')'; $('local-role').textContent = localRole;
+  $('local-initials').textContent = (PC.user.name || '?').replace(/^Dr\.?\s*/i, '').trim().charAt(0).toUpperCase();
+  $('tile-remote').style.order = isDoctor ? 2 : 1;
+  $('tile-local').style.order = isDoctor ? 1 : 2;
+  $('waiting').firstElementChild.textContent = `Waiting for ${remoteName} to join...`;
+  function paintLocalState() {
+    const bits = [];
+    if (!micOn) bits.push('Mic off');
+    if (!camOn) bits.push('Camera off');
+    $('local-state').textContent = bits.join(' · ');
+    $('local-avatar').classList.toggle('hidden', camOn && camReal);
+  }
+
+  /* ---------- Media (falls back gracefully) ---------- */
+  async function getMedia() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('media-note').textContent = 'Camera needs localhost or HTTPS. Continuing without video.'; return fallbackStream();
+    }
+    try { const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); camReal = true; micReal = true; return st; }
+    catch (e1) {
+      try { const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); micReal = true; $('media-note').textContent = 'Camera unavailable. Audio only.'; return withCanvas(s); }
+      catch (e2) { $('media-note').textContent = 'Camera and microphone blocked. Allow them from the lock icon in the address bar. Continuing without media.'; return fallbackStream(); }
+    }
+  }
+  function canvasTrack() {
+    const c = document.createElement('canvas'); c.width = 640; c.height = 400; const g = c.getContext('2d');
+    const draw = () => { g.fillStyle = '#12263A'; g.fillRect(0, 0, 640, 400); g.fillStyle = '#9FB4C3'; g.font = '24px sans-serif'; g.textAlign = 'center';
+      g.fillText(PC.user.name, 320, 190); g.font = '16px sans-serif'; g.fillText('Camera not available', 320, 220); };
+    draw(); setInterval(draw, 1000);
+    return c.captureStream(5).getVideoTracks()[0];
+  }
+  function withCanvas(stream) { stream.addTrack(canvasTrack()); return stream; }
+  function fallbackStream() { return new MediaStream([canvasTrack()]); }
+
+  /* ---------- Live captions + captions history panel ---------- */
+  const capEl = $('captions');
+  let capTimer, liveTimer;
+  const CAPKEY = 'pc_caps_' + apptId;
+  let capLog = []; try { capLog = JSON.parse(sessionStorage.getItem(CAPKEY) || '[]'); } catch (e) { capLog = []; }
+
+  // Pre-select the language the person said they speak
+  const LOC = { english: 'en-IN', hindi: 'hi-IN', kannada: 'kn-IN', marathi: 'mr-IN', tamil: 'ta-IN', telugu: 'te-IN', malayalam: 'ml-IN', bengali: 'bn-IN', gujarati: 'gu-IN', punjabi: 'pa-IN' };
+  PC.api('GET', '/me/languages').then((r) => { const f = (r.languages || []).map((x) => LOC[x.toLowerCase()]).find(Boolean); if (f) { $('speak-lang').value = f; } }).catch(() => {});
+
+  const css = document.createElement('style');
+  css.textContent = `
+  .capp-tab{position:fixed;right:0;top:42%;z-index:85;writing-mode:vertical-rl;background:var(--ink);color:#fff;border:0;border-radius:10px 0 0 10px;padding:.9rem .55rem;font-weight:700;box-shadow:-3px 3px 14px rgba(14,30,45,.25);cursor:pointer}
+  .capp-tab span{background:var(--teal);border-radius:99px;padding:.1rem .4rem;margin-top:.4rem;font-size:.75rem;display:inline-block;writing-mode:horizontal-tb}
+  .capp{position:fixed;top:64px;right:0;bottom:0;width:min(380px,92vw);z-index:95;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(14,30,45,.2);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .22s ease}
+  .capp.open{transform:none}
+  .capp-head{display:flex;justify-content:space-between;align-items:center;gap:.4rem;flex-wrap:wrap;padding:.7rem .9rem;border-bottom:1px solid var(--line);background:var(--teal-wash)}
+  .capp-list{flex:1;overflow-y:auto;padding:.6rem .9rem;display:grid;align-content:start;gap:.5rem}
+  .capp-item{border-radius:10px;padding:.5rem .65rem;background:#F3F6F8;font-size:.92rem;word-break:break-word}
+  .capp-item.mine{background:var(--teal-wash)}
+  .capp-meta{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);margin-bottom:.1rem}
+  .capp-empty{color:var(--muted);font-size:.88rem;padding:.4rem 0}
+  .capp-live{min-height:2.4rem;padding:.5rem .9rem;border-top:1px dashed var(--line);font-size:.9rem;font-style:italic;color:var(--ink-soft);background:#FBFCFD}
+  .capp-foot{padding:.5rem .9rem;border-top:1px solid var(--line)}
+  @media (prefers-reduced-motion:reduce){.capp{transition:none}}
+  `;
+  document.head.appendChild(css);
+
+  const tab = document.createElement('button');
+  tab.className = 'capp-tab'; tab.id = 'cap-tab'; tab.type = 'button'; tab.setAttribute('aria-controls', 'cap-panel');
+  tab.innerHTML = 'Captions <span id="cap-count">0</span>';
+  const panel = document.createElement('aside');
+  panel.className = 'capp'; panel.id = 'cap-panel'; panel.setAttribute('aria-label', 'Captions history');
+  panel.innerHTML = `<div class="capp-head"><b>Captions history</b>
+      <div class="row" style="gap:.3rem"><button class="btn btn-ghost btn-sm" id="cap-save">Save</button><button class="btn btn-ghost btn-sm" id="cap-clear">Clear</button><button class="btn btn-ghost btn-sm" id="cap-close" aria-label="Close captions panel">Close</button></div></div>
+    <div class="capp-list" id="cap-list" role="log" aria-live="polite"></div>
+    <div class="capp-live" id="cap-live" aria-hidden="true"></div>
+    <div class="capp-foot small muted">Kept only in this browser tab. It is not saved on the server.</div>`;
+  document.body.appendChild(tab); document.body.appendChild(panel);
+
+  const fmtTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  function renderLog() {
+    const box = $('cap-list');
+    box.innerHTML = capLog.length ? capLog.map((c) => `<div class="capp-item ${c.mine ? 'mine' : ''}"><div class="capp-meta"><b>${PC.esc(c.who)}</b><span>${fmtTime(c.ts)}</span></div>${PC.esc(c.text)}</div>`).join('')
+      : '<div class="capp-empty">Nothing yet. Captions appear here as people speak, and stay after they fade from the video.</div>';
+    box.scrollTop = box.scrollHeight;
+    $('cap-count').textContent = capLog.length;
+  }
+  function addLog(who, text, mine) {
+    capLog.push({ who, text, mine, ts: Date.now() });
+    if (capLog.length > 500) capLog = capLog.slice(-500);
+    try { sessionStorage.setItem(CAPKEY, JSON.stringify(capLog)); } catch (e) {}
+    renderLog();
+  }
+  function setLive(who, text) {
+    $('cap-live').textContent = text ? who + ': ' + text : '';
+    clearTimeout(liveTimer);
+    if (text) liveTimer = setTimeout(() => ($('cap-live').textContent = ''), 4000); // clears if the speaker stops mid-sentence
+  }
+  const openPanel = (on) => { panel.classList.toggle('open', on); tab.style.display = on ? 'none' : ''; if (on) { renderLog(); $('cap-close').focus(); } else { tab.focus(); } };
+  tab.onclick = () => openPanel(true);
+  $('cap-close').onclick = () => openPanel(false);
+  $('btn-cap-panel').onclick = () => openPanel(!panel.classList.contains('open'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panel.classList.contains('open')) openPanel(false); });
+  $('cap-clear').onclick = () => { if (!capLog.length || !confirm('Clear the captions history on this screen?')) return; capLog = []; try { sessionStorage.removeItem(CAPKEY); } catch (e) {} renderLog(); };
+  $('cap-save').onclick = () => {
+    if (!capLog.length) { $('cap-msg').className = 'msg err'; $('cap-msg').textContent = 'There are no captions to save yet.'; return; }
+    const text = capLog.map((c) => `[${fmtTime(c.ts)}] ${c.who}: ${c.text}`).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    a.download = 'Pulscare-captions-' + apptId + '.txt'; document.body.appendChild(a); a.click(); a.remove();
+  };
+  renderLog();
+
+  // On-video caption (fades 6 seconds after the last update)
+  function showCaption(who, text) {
+    if (!$('opt-captions').checked) return;
+    capEl.style.fontSize = $('cap-size').value;
+    capEl.style.display = 'block';
+    capEl.innerHTML = `<small>${PC.esc(who)}</small>${PC.esc(text)}`;
+    clearTimeout(capTimer); capTimer = setTimeout(() => (capEl.style.display = 'none'), 6000);
+  }
+  $('opt-captions').onchange = () => { if (!$('opt-captions').checked) capEl.style.display = 'none'; };
+  $('cap-size').onchange = () => { capEl.style.fontSize = $('cap-size').value; };
+
+  // Receive the other person's captions: quick in-progress text while they speak, finished sentence goes to the history
+  sock.on('caption', ({ text, name, final }) => {
+    if (final) { setLive('', ''); addLog(name, text, false); showCaption(name, text); }
+    else { showCaption(name, text); setLive(name, text); }
+  });
+
+  // Send my captions
+  let lastInterimAt = 0, lastInterim = '', sentCount = 0;
+  function sendInterim(t) {
+    showCaption('You', t); setLive('You', t);
+    const now = Date.now();
+    if (t === lastInterim || now - lastInterimAt < 250) return;
+    lastInterimAt = now; lastInterim = t;
+    sock.emit('caption', { appointmentId: apptId, text: t, lang: $('speak-lang').value, final: false });
+  }
+  function sendFinal(t) {
+    lastInterim = ''; setLive('', ''); sentCount++;
+    sock.emit('caption', { appointmentId: apptId, text: t, lang: $('speak-lang').value, final: true });
+    addLog('You', t, true); showCaption('You', t); paintMe();
+  }
+
+  /* Status for both people: is MY captioning working, and is THEIRS? */
+  const SRc = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const inApp = /FBAN|FBAV|Instagram|WhatsApp|MicroMessenger|Snapchat|; wv\)/i.test(navigator.userAgent);
+  let myState = SRc ? 'off' : 'unsupported';
+  let recog = null, recogOn = false, restarts = [], silenceTimer = null, repliedState = false;
+  const note = (t, bad) => { $('cap-msg').className = 'msg ' + (bad ? 'err' : ''); $('cap-msg').textContent = t; };
+  const announce = () => sock.emit('caption:state', { appointmentId: apptId, state: myState });
+  function paintMe() {
+    const names = { off: 'off. Press "Start my live captions"', listening: 'listening' + (sentCount ? ' · ' + sentCount + ' sentence' + (sentCount === 1 ? '' : 's') + ' sent' : ''), blocked: 'blocked (microphone permission)', busy: 'could not start. Use the typing box', unsupported: 'not available in this browser. Use the typing box' };
+    $('cap-me').textContent = names[myState] || myState;
+    $('rec-state').className = 'badge ' + (myState === 'listening' ? 'done' : 'pending');
+    $('rec-state').textContent = myState === 'listening' ? 'Listening' : 'Off';
+    $('btn-speech').textContent = recogOn ? 'Stop my live captions' : 'Start my live captions';
+  }
+  function setState(st) { myState = st; paintMe(); announce(); }
+  const PEER = { listening: 'listening', off: 'not started yet. Ask them to press "Start my live captions"', unsupported: 'not available on their device. They can type instead', blocked: 'their microphone is blocked. They can type instead', busy: 'could not start on their device. They can type instead' };
+  const paintPeer = (st) => { $('cap-peer').textContent = PEER[st] || 'waiting for them to join'; };
+  sock.on('caption:state', ({ state }) => { paintPeer(state); if (!repliedState) { repliedState = true; announce(); } });
+  sock.on('peer:joined', () => announce());
+  sock.on('peer:left', () => paintPeer(''));
+  setTimeout(announce, 1500);
+
+  function startRecog() {
+    if (!SRc) {
+      setState('unsupported');
+      note(inApp ? 'This link is open inside another app, which cannot do speech captions. Open it in Chrome (menu, then Open in browser). You can still type below.' : 'Speech captions need Chrome or Edge. You can still type below, and it shows in the captions history.', true);
+      return;
+    }
+    recog = new SRc(); recog.continuous = true; recog.interimResults = true; recog.lang = $('speak-lang').value;
+    recog.onaudiostart = () => note('Microphone is open. Start speaking.', false);
+    recog.onresult = (e) => {
+      clearTimeout(silenceTimer); note('', false);
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) { const f = t.trim(); if (f) sendFinal(f); interim = ''; } else interim += t;
+      }
+      if (interim.trim()) sendInterim(interim.trim());
+    };
+    recog.onerror = (e) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      recogOn = false; clearTimeout(silenceTimer);
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { setState('blocked'); note('Microphone permission is blocked. Press the lock icon in the address bar, allow Microphone, then press Start again.', true); }
+      else if (e.error === 'audio-capture') { setState('busy'); note('Captions could not use the microphone. The call, another tab or another app may be using it. On some phones captions cannot run during a call. Use the typing box.', true); }
+      else if (e.error === 'network') { setState('off'); note('Speech recognition needs internet.', true); }
+      else if (e.error === 'language-not-supported') { setState('off'); note('This browser cannot do captions in the chosen language. Pick another language.', true); }
+      else { setState('off'); note('Speech recognition problem: ' + e.error, true); }
+    };
+    recog.onend = () => {
+      if (!recogOn) { paintMe(); return; }
+      const now = Date.now(); restarts = restarts.filter((t) => now - t < 10000); restarts.push(now);
+      if (restarts.length > 6) { recogOn = false; setState('busy'); note('Captions keep stopping. Another browser tab or the call may be using the microphone. Close other tabs that use it, then press Start again, or use the typing box.', true); return; }
+      setTimeout(() => { if (recogOn) { try { recog.start(); } catch (e) {} } }, 250);
+    };
+    note('', false); restarts = []; sentCount = 0;
+    try { recog.start(); } catch (e) { setState('busy'); note('Captions could not start: ' + e.message, true); return; }
+    recogOn = true; setState('listening');
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => { if (recogOn) note('Not hearing you yet. Speak clearly, check your microphone is not muted, and on a phone check the call sound still works. You can type below instead.', true); }, 12000);
+  }
+  function stopRecog() { recogOn = false; clearTimeout(silenceTimer); try { if (recog) recog.stop(); } catch (e) {} setState(SRc ? 'off' : 'unsupported'); }
+  $('btn-speech').onclick = () => (recogOn ? stopRecog() : startRecog());
+  $('speak-lang').onchange = () => { if (recogOn) { stopRecog(); startRecog(); } };
+  paintMe();
+  if (!SRc) note(inApp ? 'This link is open inside another app, so speech captions will not work. Open it in Chrome. Typing below still works.' : 'This browser cannot turn speech into captions. Use Chrome or Edge, or type below.', true);
+  else if (inApp) note('You opened this link inside another app. If captions do not work, open it in Chrome.', false);
+  const sendTyped = () => { const t = $('type-caption').value.trim(); if (!t) return; $('type-caption').value = ''; sendFinal(t); };
+  $('btn-type').onclick = sendTyped;
+  $('type-caption').onkeydown = (e) => { if (e.key === 'Enter') sendTyped(); };
+  const sendQuick = () => { const t = $('quick-caption').value.trim(); if (!t) return; $('quick-caption').value = ''; sendFinal(t); };
+  $('btn-quick').onclick = sendQuick;
+  $('quick-caption').onkeydown = (e) => { if (e.key === 'Enter') sendQuick(); };
+  if (!SRc) $('quick-caption').placeholder = 'Speech captions are not available in this browser. Type what you want to say and press Enter';
+
+
+  localStream = await getMedia();
+  $('local').srcObject = localStream;
+  paintDiag(); paintLocalState();
+
+  /* ---------- Sound level bars (show who has a sound problem) ---------- */
+  function meter(stream, el) {
+    try {
+      if (!stream.getAudioTracks().length) return;
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      const an = ac.createAnalyser(); an.fftSize = 256;
+      ac.createMediaStreamSource(stream).connect(an);
+      const buf = new Uint8Array(an.frequencyBinCount);
+      setInterval(() => {
+        if (ac.state === 'suspended') ac.resume();
+        an.getByteTimeDomainData(buf);
+        let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v - 128));
+        el.style.width = Math.min(100, m * 2.4) + '%';
+      }, 120);
+    } catch (e) {}
+  }
+  meter(localStream, $('lvl-me'));
+
+  /* ---------- Flip camera (front / back), mainly for phones ---------- */
+  let facing = 'user';
+  async function flipCamera() {
+    const next = facing === 'user' ? 'environment' : 'user';
+    const old = localStream.getVideoTracks()[0];
+    const sender = pc && pc.getSenders().find((x) => x.track && x.track.kind === 'video');
+    const grab = async (f) => (await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: f } } })).getVideoTracks()[0];
+    if (old) { localStream.removeTrack(old); old.stop(); } // some phones only open one camera at a time
+    let nt, used = next;
+    try { nt = await grab(next); }
+    catch (e) { try { nt = await grab(facing); used = facing; $('media-note').textContent = 'That camera could not be opened. Staying on the current one.'; } catch (e2) { $('media-note').textContent = 'Could not open the camera.'; return; } }
+    nt.enabled = camOn;
+    localStream.addTrack(nt);
+    $('local').srcObject = localStream;
+    if (sender) { try { await sender.replaceTrack(nt); } catch (e) { console.warn(e); } }
+    facing = used;
+    $('local').style.transform = facing === 'user' ? '' : 'none'; // mirror only the front camera preview
+    $('btn-flip').textContent = facing === 'user' ? 'Use back camera' : 'Use front camera';
+  }
+  if (camReal && navigator.mediaDevices.enumerateDevices) {
+    navigator.mediaDevices.enumerateDevices().then((d) => {
+      if (d.filter((x) => x.kind === 'videoinput').length > 1 || /Android|iPhone|iPad/i.test(navigator.userAgent)) $('btn-flip').classList.remove('hidden');
+    }).catch(() => {});
+  }
+  $('btn-flip').onclick = flipCamera;
+
+  $('tap-play').onclick = () => { $('remote').play(); $('tap-play').classList.add('hidden'); };
+  $('btn-mic').onclick = () => { micOn = !micOn; localStream.getAudioTracks().forEach((t) => (t.enabled = micOn)); $('btn-mic').textContent = micOn ? 'Mute microphone' : 'Unmute microphone'; paintLocalState(); };
+  $('btn-cam').onclick = () => { camOn = !camOn; localStream.getVideoTracks().forEach((t) => (t.enabled = camOn)); $('btn-cam').textContent = camOn ? 'Turn camera off' : 'Turn camera on'; paintLocalState(); };
+
+  /* ---------- WebRTC (peer to peer, signalled through our server) ---------- */
+  function newPC() {
+    if (pc) pc.close();
+    pendingIce = [];
+    pc = new RTCPeerConnection({ iceServers });
+    D.remote = 'no'; D.audio = 'no'; D.ice = 'new'; clearTimeout(connTimer); connTimer = setTimeout(() => { if (D.ice !== 'connected' && D.ice !== 'completed') { D.ice = 'timeout'; paintDiag(); } }, 15000); paintDiag();
+    localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+    pc.ontrack = (e) => {
+      const rv = $('remote'); rv.srcObject = e.streams[0]; $('waiting').style.display = 'none'; $('remote-dot').classList.add('live');
+      D.remote = e.streams[0].getVideoTracks().length ? 'yes' : 'no'; D.audio = e.streams[0].getAudioTracks().length ? 'yes' : 'no';
+      rv.muted = false; rv.volume = 1;
+      if (D.audio === 'yes' && rv.dataset.metered !== e.streams[0].id) { rv.dataset.metered = e.streams[0].id; meter(e.streams[0], $('lvl-them')); }
+      paintDiag();
+      const p = rv.play(); if (p && p.catch) p.catch(() => $('tap-play').classList.remove('hidden'));
+    };
+    pc.oniceconnectionstatechange = () => { D.ice = pc.iceConnectionState; if (D.ice === 'connected' || D.ice === 'completed') clearTimeout(connTimer); paintDiag(); };
+    pc.onicecandidate = (e) => { if (e.candidate) sock.emit('signal', { appointmentId: apptId, data: { candidate: e.candidate } }); };
+    pc.onconnectionstatechange = () => {
+      const s = pc.connectionState;
+      setConn(s === 'connected' ? 'done' : s === 'failed' ? 'alert' : 'pending', s === 'connected' ? 'Connected' : s === 'failed' ? 'Connection failed' : 'Connecting video...');
+    };
+    return pc;
+  }
+  function setConn(cls, text) { const b = $('conn'); b.className = 'badge ' + cls; b.textContent = text; }
+
+  sock.on('peer:joined', async () => {
+    peerHere = true; paintDiag();
+    setConn('pending', 'Connecting video...');
+    newPC();
+    const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+    sock.emit('signal', { appointmentId: apptId, data: { sdp: pc.localDescription } });
+    keyReady.then(() => { if (E2EE.myPub) sock.emit('key:publish', { appointmentId: apptId, publicKey: E2EE.myPub }); });
+  });
+  sock.on('signal', async ({ data }) => {
+    peerHere = true;
+    if (data.sdp) {
+      if (data.sdp.type === 'offer') {
+        newPC();
+        await pc.setRemoteDescription(data.sdp);
+        const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
+        sock.emit('signal', { appointmentId: apptId, data: { sdp: pc.localDescription } });
+      } else if (pc) await pc.setRemoteDescription(data.sdp);
+      for (const c of pendingIce) await pc.addIceCandidate(c).catch(() => {}); pendingIce = [];
+    } else if (data.candidate) {
+      if (pc && pc.remoteDescription) await pc.addIceCandidate(data.candidate).catch(() => {}); else pendingIce.push(data.candidate);
+    }
+  });
+  sock.on('peer:left', () => {
+    peerHere = false; paintDiag(); $('waiting').style.display = 'grid'; $('remote-dot').classList.remove('live'); $('waiting').firstElementChild.textContent = remoteName + ' left. Waiting for them to rejoin...'; setConn('pending', 'Waiting'); });
+
+  /* ---------- Encrypted chat ---------- */
+  const log = $('chat-log');
+  const shown = new Set(); // message ids already on screen (a message can arrive live and in the history)
+  function bubble(text, mine, locked) {
+    const d = document.createElement('div'); d.className = 'bubble' + (mine ? ' me' : '') + (locked ? ' locked' : ''); d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight;
+  }
+  async function showMsg(m) {
+    if (m.id) { if (shown.has(m.id)) return; shown.add(m.id); }
+    const mine = m.senderId === PC.user.id;
+    try { bubble(await E2EE.decrypt(m.ciphertext, m.iv), mine, false); }
+    catch { bubble('Encrypted message from an earlier session (key no longer available)', mine, true); }
+  }
+  async function peerKey(k) {
+    try { await E2EE.setPeer(k); $('fp').textContent = E2EE.fingerprint; $('chat-input').disabled = false; $('chat-send').disabled = false; } catch (e) { console.warn(e); }
+  }
+
+  /* ---------- Chat key: unlock, create or skip (Day 7) ---------- */
+  // Resolves to: 'restored' | 'created' | 'session' (key for this call only) | 'unavailable' (browser cannot do encryption)
+  function keyPanel(mode, backup) {
+    return new Promise((resolve) => {
+      const panel = $('key-panel'); panel.classList.remove('hidden');
+      const say = (t, bad) => { const m = $('key-msg'); m.className = 'msg ' + (bad ? 'err' : 'ok'); m.textContent = t; };
+      const busy = (on) => panel.querySelectorAll('button,input').forEach((x) => (x.disabled = on));
+      const finish = (v) => { panel.classList.add('hidden'); panel.innerHTML = ''; resolve(v); };
+      const sessionOnly = async () => { await E2EE.init(false); finish('session'); };
+      if (mode === 'restore') {
+        panel.innerHTML = `<h3 style="font-size:1.05rem">Unlock your chat</h3>
+          <p class="small" style="margin:.3rem 0 .6rem">Enter your chat passphrase to read the messages from earlier in this consultation.</p>
+          <div class="field"><label for="key-pass">Chat passphrase</label><input id="key-pass" type="password" autocomplete="current-password"></div>
+          <div class="row"><button class="btn btn-primary btn-sm" id="key-go">Unlock</button>
+          <button class="btn btn-ghost btn-sm" id="key-forgot">I forgot it</button>
+          <button class="btn btn-ghost btn-sm" id="key-skip">Continue without</button></div><div class="msg" id="key-msg"></div>`;
+        const go = async () => {
+          const p = $('key-pass').value; if (!p) { say('Type your passphrase.', true); return; }
+          busy(true); say('Unlocking...');
+          try { await E2EE.restore(backup, p); finish('restored'); }
+          catch (e) { busy(false); say('That passphrase did not open the key. Check it and try again.', true); $('key-pass').select(); }
+        };
+        $('key-go').onclick = go;
+        $('key-pass').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+        $('key-skip').onclick = async () => { busy(true); await sessionOnly(); };
+        $('key-forgot').onclick = async () => {
+          if (!confirm('Start with a new key? Messages from earlier calls will stay locked forever. This cannot be undone.')) return;
+          busy(true);
+          try { await PC.api('DELETE', '/keys/backup'); } catch (e) { busy(false); say(e.message, true); return; }
+          keyPanel('create', null).then(resolve); panel.classList.remove('hidden');
+        };
+        $('key-pass').focus();
+      } else {
+        panel.innerHTML = `<h3 style="font-size:1.05rem">Protect your chat</h3>
+          <p class="small" style="margin:.3rem 0 .6rem">Choose a passphrase. If you reload this page, it brings back your chat key so earlier messages stay readable. <b>We cannot recover it for you.</b></p>
+          <div class="field"><label for="key-pass">New passphrase (at least ${E2EE.minPassphrase} characters)</label><input id="key-pass" type="password" autocomplete="new-password"></div>
+          <div class="field"><label for="key-pass2">Type it again</label><input id="key-pass2" type="password" autocomplete="new-password"></div>
+          <div class="row"><button class="btn btn-primary btn-sm" id="key-go">Save and start chat</button>
+          <button class="btn btn-ghost btn-sm" id="key-skip">Skip for now</button></div><div class="msg" id="key-msg"></div>`;
+        const go = async () => {
+          const p = $('key-pass').value;
+          if (p.length < E2EE.minPassphrase) { say(`Use at least ${E2EE.minPassphrase} characters.`, true); return; }
+          if (p !== $('key-pass2').value) { say('The two passphrases do not match.', true); return; }
+          busy(true); say('Saving...');
+          try { await E2EE.init(true); await PC.api('PUT', '/keys/backup', await E2EE.makeBackup(p)); finish('created'); }
+          catch (e) { busy(false); say('Could not save the backup: ' + e.message, true); }
+        };
+        $('key-go').onclick = go;
+        $('key-pass2').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+        $('key-skip').onclick = async () => { busy(true); await sessionOnly(); };
+        $('key-pass').focus();
+      }
+    });
+  }
+  async function setupChatKey() {
+    if (!E2EE.available) return 'unavailable';
+    let backup = null;
+    try { backup = (await PC.api('GET', '/keys/backup')).backup; }
+    catch (e) { await E2EE.init(false); return 'session'; } // server unreachable: still allow a chat for this call
+    return keyPanel(backup ? 'restore' : 'create', backup);
+  }
+  const keyReady = setupChatKey().then((how) => {
+    $('key-note').textContent = how === 'restored' ? 'Chat key restored from your backup. Earlier messages are readable.'
+      : how === 'created' ? 'Your chat key is backed up. After a reload, enter your passphrase to read earlier messages.'
+      : how === 'session' ? 'This chat key is for this call only. After a reload, earlier messages stay locked.' : '';
+    return how;
+  });
+
+  sock.on('key:peer', ({ publicKey }) => { keyReady.then(() => peerKey(publicKey)); });
+  sock.on('chat:message', (m) => { keyReady.then(() => showMsg(m)); });
+  async function sendChat() {
+    const t = $('chat-input').value.trim(); if (!t || !E2EE.aesKey) return;
+    const enc = await E2EE.encrypt(t); $('chat-input').value = '';
+    sock.emit('chat:send', { appointmentId: apptId, ...enc });
+  }
+  $('chat-send').onclick = sendChat; $('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+  /* ---------- Prescription (doctor) ---------- */
+  const FREQ = ['Once daily', 'Twice daily', 'Three times daily', 'Four times daily', 'At bedtime', 'Only if needed'];
+  const TIMING = ['After meals', 'Before meals', 'With meals', 'Anytime'];
+  function rxRow(v = {}) {
+    const row = document.createElement('div'); row.className = 'rx-row';
+    row.innerHTML = `<input placeholder="Medicine name" class="f-med" aria-label="Medicine name" value="${PC.esc(v.medicine || '')}">
+      <button class="btn btn-ghost btn-sm rx-del" aria-label="Remove medicine">Remove</button>
+      <input placeholder="Dose" class="f-dose" aria-label="Dose" value="${PC.esc(v.dose || '')}">
+      <select class="f-freq" aria-label="Frequency">${FREQ.map((f) => `<option ${f === v.frequency ? 'selected' : ''}>${f}</option>`).join('')}</select>
+      <select class="f-time" aria-label="Timing">${TIMING.map((f) => `<option ${f === v.timing ? 'selected' : ''}>${f}</option>`).join('')}</select>
+      <input placeholder="Days" type="number" min="1" class="f-days" aria-label="Days" value="${v.days || 5}">`;
+    row.querySelector('.rx-del').onclick = () => row.remove();
+    $('rx-rows').appendChild(row);
+  }
+  function collectRx() {
+    return {
+      diagnosis: $('rx-diag').value, notes: $('rx-notes').value,
+      items: [...document.querySelectorAll('.rx-row')].map((r) => ({
+        medicine: r.querySelector('.f-med').value, dose: r.querySelector('.f-dose').value, frequency: r.querySelector('.f-freq').value,
+        timing: r.querySelector('.f-time').value, days: r.querySelector('.f-days').value }))
+    };
+  }
+  async function saveRx() {
+    try { await PC.api('PUT', `/appointments/${apptId}/prescription`, collectRx()); $('rx-msg').className = 'msg ok'; $('rx-msg').textContent = 'Prescription saved. It is locked until the patient pays.'; return true; }
+    catch (e) { $('rx-msg').className = 'msg err'; $('rx-msg').textContent = e.message; return false; }
+  }
+  if (isDoctor) {
+    if (appt.draft) { $('rx-diag').value = appt.draft.diagnosis; $('rx-notes').value = appt.draft.notes; appt.draft.items.forEach(rxRow); } else rxRow();
+    $('rx-add').onclick = () => rxRow(); $('rx-save').onclick = saveRx;
+    $('btn-end').onclick = async () => {
+      if (!(await saveRx())) return;
+      if (!confirm('End the call now? The patient will be taken to payment.')) return;
+      sock.emit('call:end', { appointmentId: apptId }, (r) => { if (r && r.error) { $('rx-msg').className = 'msg err'; $('rx-msg').textContent = r.error; } });
+    };
+  }
+
+  sock.on('call:ended', () => {
+    stopRecog(); localStream.getTracks().forEach((t) => t.stop()); if (pc) pc.close();
+    location.href = isDoctor ? '/doctor.html' : '/payment.html?a=' + apptId;
+  });
+
+  /* ---------- Join the room ---------- */
+  // Joining does not wait for the passphrase, so the video connects at once. Only the chat waits for the key.
+  const secure = E2EE.available;
+  if (!secure) { $('fp').textContent = 'unavailable'; $('chat-log').innerHTML = '<div class="bubble locked">Chat encryption needs localhost or HTTPS (see the README for two-laptop setup).</div>'; }
+  const doJoin = () => sock.emit('room:join', { appointmentId: apptId }, async (r) => {
+    if (r.error) { setConn('alert', r.error); return; }
+    setConn('pending', 'In room'); $('waiting').style.display = 'grid';
+    if (r.peerKey) { peerHere = true; paintDiag(); }
+    if (secure) {
+      await keyReady; // waits here while the person types their passphrase
+      sock.emit('key:publish', { appointmentId: apptId, publicKey: E2EE.myPub });
+      if (r.peerKey) await peerKey(r.peerKey);
+      // Earlier messages. They decrypt again when the key was restored (or the same key is still loaded).
+      log.innerHTML = ''; shown.clear();
+      const hist = await PC.api('GET', '/messages/' + apptId);
+      for (const m of hist) await showMsg(m);
+    }
+  });
+  sock.on('connect', doJoin);
+  if (sock.connected) doJoin();
+  window.addEventListener('beforeunload', () => { stopRecog(); });
+})();
+</script>
+</body>
+</html>

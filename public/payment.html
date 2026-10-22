@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment | Pulscare</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="chrome"></div>
+<main class="wrap" style="max-width:860px">
+  <div id="content"><p class="muted">Loading...</p></div>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/ui.js"></script>
+<script>
+(async function () {
+  if (!PC.require('patient')) return;
+  PCUI.mount({ step: 7, active: 'dash' });
+  const id = new URLSearchParams(location.search).get('a');
+  const root = document.getElementById('content');
+  let a;
+  try { a = await PC.api('GET', '/appointments/' + id); } catch (e) { root.innerHTML = `<div class="card"><h2>Payment unavailable</h2><p>${PC.esc(e.message)}</p></div>`; return; }
+  if (a.payment_status === 'paid') return showSuccess(a.invoice_no, null);
+  if (a.status !== 'awaiting_payment') { root.innerHTML = `<div class="card"><h2>Payment opens after the call</h2><p>The doctor has not ended this consultation yet.</p><a class="btn btn-primary" href="/consult.html?a=${id}">Back to the call</a></div>`; return; }
+
+  let method = 'card';
+  root.innerHTML = `
+    <h1 style="font-size:2rem;margin-bottom:.4rem">Your consultation has ended</h1>
+    <p class="muted" style="margin-bottom:1.2rem">Pay now to receive your prescription and invoice.</p>
+    <div class="grid two">
+      <div class="card">
+        <h3>Summary</h3>
+        <table><tbody>
+          <tr><td class="muted">Doctor</td><td><b>${PC.esc(a.doctor_name)}</b></td></tr>
+          <tr><td class="muted">Department</td><td>${PC.esc(a.department)}</td></tr>
+          <tr><td class="muted">Appointment</td><td>${PC.esc(a.id)}</td></tr>
+          <tr><td class="muted">Fee</td><td><b style="font-size:1.2rem">${PC.money(a.fee)}</b></td></tr>
+        </tbody></table>
+        <div class="note-live" style="margin-top:1rem">Your prescription is written and waiting. It is released the moment payment is verified.</div>
+        <div class="note-final"><b>Final version:</b> Razorpay checkout with a backup webhook, so payment still confirms if you close this tab.</div>
+      </div>
+      <div class="card" id="pay-card">
+        <h3>Pay</h3>
+        <div class="tabs">
+          <button class="tab on" id="m-card">Card</button><button class="tab" id="m-upi">UPI</button>
+        </div>
+        <div id="card-form">
+          <div class="field"><label for="c-num">Card number</label><input id="c-num" inputmode="numeric" placeholder="4111 1111 1111 1111" autocomplete="off"></div>
+          <div class="grid two"><div class="field"><label for="c-exp">Expiry (MM/YY)</label><input id="c-exp" placeholder="12/30" autocomplete="off"></div>
+          <div class="field"><label for="c-cvv">CVV</label><input id="c-cvv" inputmode="numeric" placeholder="123" autocomplete="off"></div></div>
+          <p class="small muted">Test mode. <a href="#" id="fill-ok">Use the success card</a> or <a href="#" id="fill-fail">use the declined card</a>.</p>
+        </div>
+        <div id="upi-form" class="hidden">
+          <div class="field"><label for="u-id">UPI ID</label><input id="u-id" placeholder="name@okbank" autocomplete="off"></div>
+          <p class="small muted">Test mode. <a href="#" id="upi-ok">Use test@okbank (succeeds)</a> or <a href="#" id="upi-fail">fail@okbank (declined)</a>.</p>
+        </div>
+        <button class="btn btn-primary" id="pay-btn" style="width:100%;margin-top:.7rem">Pay ${PC.money(a.fee)}</button>
+        <div class="msg" id="pay-msg" role="alert"></div>
+        <p class="small muted">Simulated gateway. No money moves. The server still validates the payment and reads the fee from its own database.</p>
+      </div>
+    </div>`;
+
+  const set = (m) => { method = m; document.getElementById('m-card').classList.toggle('on', m === 'card'); document.getElementById('m-upi').classList.toggle('on', m === 'upi');
+    document.getElementById('card-form').classList.toggle('hidden', m !== 'card'); document.getElementById('upi-form').classList.toggle('hidden', m !== 'upi'); };
+  document.getElementById('m-card').onclick = () => set('card'); document.getElementById('m-upi').onclick = () => set('upi');
+  const fillCard = (n) => { document.getElementById('c-num').value = n; document.getElementById('c-exp').value = '12/30'; document.getElementById('c-cvv').value = '123'; };
+  document.getElementById('fill-ok').onclick = (e) => { e.preventDefault(); fillCard('4111 1111 1111 1111'); };
+  document.getElementById('fill-fail').onclick = (e) => { e.preventDefault(); fillCard('4000 0000 0000 0002'); };
+  document.getElementById('upi-ok').onclick = (e) => { e.preventDefault(); document.getElementById('u-id').value = 'test@okbank'; };
+  document.getElementById('upi-fail').onclick = (e) => { e.preventDefault(); document.getElementById('u-id').value = 'fail@okbank'; };
+
+  document.getElementById('pay-btn').onclick = async () => {
+    const btn = document.getElementById('pay-btn'), msg = document.getElementById('pay-msg');
+    btn.disabled = true; btn.textContent = 'Verifying payment on the server...'; msg.textContent = '';
+    try {
+      const body = { appointmentId: id, method };
+      if (method === 'card') body.card = { number: document.getElementById('c-num').value, expiry: document.getElementById('c-exp').value, cvv: document.getElementById('c-cvv').value };
+      else body.upi = document.getElementById('u-id').value;
+      const r = await PC.api('POST', '/payments/pay', body);
+      showSuccess(r.invoiceNo, r.txnRef);
+    } catch (e) {
+      msg.className = 'msg err'; msg.textContent = e.message + (e.status === 402 ? ' No documents were released. Try the other test option.' : '');
+      btn.disabled = false; btn.textContent = 'Pay ' + PC.money(a.fee);
+    }
+  };
+
+  function showSuccess(invoiceNo, txn) {
+    root.innerHTML = `
+      <div class="card" style="text-align:center;padding:2rem">
+        <div class="badge done" style="font-size:.9rem">Payment verified</div>
+        <h1 style="font-size:2rem;margin:.8rem 0 .3rem">Your documents are ready</h1>
+        <p class="muted">${txn ? 'Transaction ' + PC.esc(txn) + '. ' : ''}Two separate files were created by the server.</p>
+        <div class="grid two" style="margin:1.5rem 0;text-align:left">
+          <div class="card"><h3>Prescription</h3><p class="small muted">Signed by our prototype signing authority, with a SHA-256 seal and a QR code anyone can scan to verify it.</p>
+            <button class="btn btn-primary" style="width:100%;margin-top:.8rem" id="dl-rx">Open prescription (PDF)</button></div>
+          <div class="card"><h3>Invoice ${PC.esc(invoiceNo || '')}</h3><p class="small muted">Numbered by the server, with the fee, payment method and transaction reference.</p>
+            <button class="btn btn-primary" style="width:100%;margin-top:.8rem" id="dl-inv">Open invoice (PDF)</button></div>
+        </div>
+        <a class="btn btn-ghost" href="/patient.html#appts">Back to my consultations</a>
+        <div class="note-final" style="text-align:left"><b>Final version:</b> the doctor’s own licensed digital signature, documents stored in the cloud, and a payment record that cannot be edited.</div>
+      </div>`;
+    document.getElementById('dl-rx').onclick = () => PC.openDoc(id, 'prescription');
+    document.getElementById('dl-inv').onclick = () => PC.openDoc(id, 'invoice');
+  }
+})();
+</script>
+</body>
+</html>

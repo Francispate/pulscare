@@ -1,0 +1,223 @@
+<!-- PASTE AS: public/admin.html  (new file)  Day 11: the admin panel. Counts, doctors (add / disable / enable), appointments, payments, audit log. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin | Pulscare</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .adm-tabs{display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0}
+    .adm-tabs button{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);border-radius:999px;padding:.4rem .95rem;font:inherit;font-weight:600;cursor:pointer}
+    .adm-tabs button[aria-selected="true"]{background:var(--teal);color:#fff;border-color:var(--teal)}
+    .stats{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));margin-bottom:1rem}
+    .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:.8rem 1rem}
+    .stat b{display:block;font-size:1.6rem;font-family:Fraunces,serif}
+    .stat span{font-size:.82rem;color:var(--muted)}
+    .stat.warn b{color:var(--coral)}
+    .tbl-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
+    .tbl-wrap table{width:100%;border-collapse:collapse;min-width:640px}
+    .tbl-wrap th,.tbl-wrap td{text-align:left;padding:.55rem .75rem;border-bottom:1px solid var(--line);font-size:.88rem;vertical-align:top}
+    .tbl-wrap th{font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+    .adm-grid{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+    .adm-bar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-bottom:.8rem}
+    .cred{background:#FFF8E1;border:1px solid #F3D88A;border-radius:12px;padding:.8rem 1rem;margin-bottom:1rem}
+    .cred code{font-size:1.05rem;font-weight:700;letter-spacing:.04em}
+    .mono{font-family:ui-monospace,Consolas,monospace;font-size:.8rem;color:var(--ink-soft);word-break:break-word}
+  </style>
+</head>
+<body>
+<div id="chrome"></div>
+<main class="wrap" style="max-width:1100px">
+
+  <section id="login" hidden style="max-width:420px;margin:2rem auto">
+    <div class="card">
+      <h1 style="font-size:1.6rem">Admin login</h1>
+      <p class="muted small" style="margin:.3rem 0 1rem">For administrators only. Admin accounts are created by the person running the server.</p>
+      <div class="field"><label for="a-email">Email</label><input id="a-email" type="email" autocomplete="username"></div>
+      <div class="field"><label for="a-pass">Password</label><input id="a-pass" type="password" autocomplete="current-password"></div>
+      <button class="btn btn-primary" id="a-go" style="width:100%">Log in</button>
+      <div class="msg" id="a-msg" role="alert"></div>
+    </div>
+  </section>
+
+  <section id="panel" hidden>
+    <h1 style="font-size:1.9rem">Administration</h1>
+    <p class="muted small">You can see who did what and when. You cannot read chats, medical records or anyone's PDFs.</p>
+    <div class="adm-tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="doctors" aria-selected="false">Doctors</button>
+      <button role="tab" data-tab="appointments" aria-selected="false">Appointments</button>
+      <button role="tab" data-tab="payments" aria-selected="false">Payments</button>
+      <button role="tab" data-tab="audit" aria-selected="false">Audit log</button>
+    </div>
+    <div class="msg" id="adm-msg" role="alert"></div>
+    <div id="view"></div>
+  </section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/ui.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id), esc = PC.esc;
+  const when = (iso) => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  const say = (t, good) => { const m = $('adm-msg'); m.className = 'msg ' + (good ? 'ok' : 'err'); m.textContent = t || ''; };
+  const table = (head, body) => `<div class="tbl-wrap"><table><thead><tr>${head.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${head.length}" class="muted">Nothing to show.</td></tr>`}</tbody></table></div>`;
+  const badge = (cls, t) => `<span class="badge ${cls}">${esc(t)}</span>`;
+
+  /* ---------- login ---------- */
+  function showLogin() {
+    $('login').hidden = false;
+    const go = async () => {
+      const m = $('a-msg'); m.className = 'msg'; m.textContent = '';
+      try {
+        const r = await PC.api('POST', '/auth/admin-login', { email: $('a-email').value, password: $('a-pass').value });
+        PC.setSession(r.token, r.user); location.reload();
+      } catch (e) { m.className = 'msg err'; m.textContent = e.message; }
+    };
+    $('a-go').onclick = go;
+    $('a-pass').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    $('a-email').focus();
+  }
+
+  /* ---------- tabs ---------- */
+  const tabs = {
+    async overview(v) {
+      const s = await PC.api('GET', '/admin/stats');
+      const st = s.appointments.byStatus, l = s.last24h;
+      const card = (n, label, warn) => `<div class="stat ${warn && n > 0 ? 'warn' : ''}"><b>${n}</b><span>${label}</span></div>`;
+      v.innerHTML = `<h3 style="margin-bottom:.5rem">People</h3><div class="stats">
+          ${card(s.patients, 'Patients')}${card(s.doctors.active, 'Active doctors')}${card(s.doctors.online, 'Doctors online now')}${card(s.doctors.disabled, 'Disabled doctors')}</div>
+        <h3 style="margin-bottom:.5rem">Consultations and money</h3><div class="stats">
+          ${card(s.appointments.total, 'Appointments')}${card(st.booked || 0, 'Booked / waiting')}${card(st.in_progress || 0, 'In a call now')}${card(st.awaiting_payment || 0, 'Awaiting payment')}
+          ${card(s.appointments.paid, 'Paid consultations')}${card(PC.money(s.payments.revenue), 'Payments received (demo)')}${card(s.payments.failedCount, 'Failed payments')}${card(s.queueWaiting, 'Waiting in a queue now')}</div>
+        <h3 style="margin-bottom:.5rem">Security, last 24 hours</h3><div class="stats">
+          ${card(l.loginsOk, 'Successful logins')}${card(l.loginsFailed, 'Wrong passwords', true)}${card(l.loginsBlocked, 'Logins blocked', true)}
+          ${card(l.refusedDownloads, 'Refused PDF downloads', true)}${card(l.integrityFailures, 'Documents that failed integrity', true)}${card(l.recordViews, 'Medical record views by doctors')}${card(l.recordRefusals, 'Refused record attempts', true)}</div>`;
+    },
+
+    async doctors(v) {
+      const docs = await PC.api('GET', '/admin/doctors');
+      const depts = [...new Set(docs.map((d) => d.department))];
+      const rowsHtml = docs.map((d) => `<tr>
+        <td><b>${esc(d.id)}</b><div class="mono">${esc(d.licenseId)}</div></td>
+        <td>${esc(d.name)}<div class="mono">${esc(d.email)}</div></td>
+        <td>${esc(d.department)}</td><td>${PC.money(d.fee)}</td>
+        <td>${d.disabled ? badge('alert', 'Disabled') + (d.disabledReason ? `<div class="small muted">${esc(d.disabledReason)}</div>` : '') : d.online ? badge('online', 'Online') : badge('pending', 'Offline')}${d.inCall ? '<div class="small muted">In a call</div>' : ''}</td>
+        <td>${d.appointments}</td>
+        <td>${d.disabled ? `<button class="btn btn-ghost btn-sm" data-act="enable" data-id="${esc(d.id)}">Enable</button>` : `<button class="btn btn-ghost btn-sm" data-act="disable" data-id="${esc(d.id)}">Disable</button>`}</td></tr>`).join('');
+      v.innerHTML = `<div id="cred"></div>
+        <details class="card" style="margin-bottom:1rem"><summary style="cursor:pointer;font-weight:700">Add a doctor</summary>
+          <div class="adm-grid" style="margin:.8rem 0" id="add-form">
+            <div class="field"><label for="d-name">Full name</label><input id="d-name" maxlength="80" placeholder="Dr. Anita Rao"></div>
+            <div class="field"><label for="d-email">Email</label><input id="d-email" type="email" maxlength="120"></div>
+            <div class="field"><label for="d-dept">Department</label><input id="d-dept" list="dept-list" maxlength="40"><datalist id="dept-list">${depts.map((x) => `<option value="${esc(x)}">`).join('')}</datalist></div>
+            <div class="field"><label for="d-lic">Licence ID</label><input id="d-lic" maxlength="30" placeholder="KMC-12345"></div>
+            <div class="field"><label for="d-fee">Fee (Rs)</label><input id="d-fee" type="number" min="1" max="100000" value="300"></div>
+            <div class="field"><label for="d-qual">Qualification (optional)</label><input id="d-qual" maxlength="120"></div>
+            <div class="field" style="grid-column:1/-1"><label for="d-about">About (optional)</label><input id="d-about" maxlength="300"></div>
+          </div>
+          <button class="btn btn-primary" data-act="add">Create doctor account</button>
+          <p class="small muted" style="margin-top:.5rem">A one-time password is generated and shown once. Give it to the doctor, who can log in with their Doctor ID.</p>
+        </details>
+        ${table(['ID / licence', 'Doctor', 'Department', 'Fee', 'Status', 'Appts', ''], rowsHtml)}`;
+      v._docs = docs;
+    },
+
+    async appointments(v) {
+      const status = v._status || '';
+      const list = await PC.api('GET', '/admin/appointments' + (status ? '?status=' + status : ''));
+      const stBadge = (s) => badge(s === 'completed' ? 'done' : s === 'in_progress' ? 'online' : 'pending', s.replace('_', ' '));
+      v.innerHTML = `<div class="adm-bar"><label for="f-status" class="small muted">Status</label>
+        <select id="f-status"><option value="">All</option>${['booked', 'in_progress', 'awaiting_payment', 'completed'].map((x) => `<option value="${x}" ${x === status ? 'selected' : ''}>${x.replace('_', ' ')}</option>`).join('')}</select>
+        <span class="small muted">Latest ${list.length}</span></div>` +
+        table(['Appointment', 'When', 'Patient', 'Doctor', 'Status', 'Paid', 'Fee'], list.map((a) => `<tr><td class="mono">${esc(a.id)}${a.fromSlot ? '<div class="small muted">booked slot</div>' : ''}</td><td>${esc(when(a.createdAt))}</td><td>${esc(a.patient)}</td><td>${esc(a.doctor)}</td><td>${stBadge(a.status)}</td><td>${esc(a.paymentStatus || '')}</td><td>${PC.money(a.fee)}</td></tr>`).join(''));
+      $('f-status').onchange = (e) => { v._status = e.target.value; tabs.appointments(v).catch((x) => say(x.message)); };
+    },
+
+    async payments(v) {
+      const list = await PC.api('GET', '/admin/payments');
+      const total = list.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount), 0);
+      v.innerHTML = `<p class="small muted" style="margin-bottom:.6rem">Latest ${list.length} payments. Paid in this list: <b>${PC.money(total)}</b>. All payments are simulated.</p>` +
+        table(['When', 'Patient', 'Doctor', 'Method', 'Amount', 'Result', 'Reference'], list.map((p) => `<tr><td>${esc(when(p.createdAt))}</td><td>${esc(p.patient)}</td><td>${esc(p.doctor)}</td><td>${esc(p.method)}</td><td>${PC.money(p.amount)}</td><td>${p.status === 'paid' ? badge('done', 'paid') : badge('alert', 'failed')}${p.failureReason ? `<div class="small muted">${esc(p.failureReason)}</div>` : ''}</td><td class="mono">${esc(p.txnRef)}</td></tr>`).join(''));
+    },
+
+    async audit(v) {
+      const f = v._f || (v._f = { group: '', actor: '' });
+      const GROUPS = [['', 'Everything'], ['LOGIN', 'Logins'], ['DOCUMENT', 'Documents'], ['RECORD', 'Medical records'], ['REPORT', 'Report uploads'], ['VERIFY', 'Prescription checks'], ['QUEUE', 'Queue'], ['SLOT', 'Slots'], ['KEY_BACKUP', 'Chat key backup'], ['DOCTOR', 'Doctor changes'], ['ADMIN', 'Admin refusals']];
+      const q = (before) => `/admin/audit?limit=100${f.group ? '&group=' + f.group : ''}${f.actor ? '&actor=' + encodeURIComponent(f.actor) : ''}${before ? '&before=' + before : ''}`;
+      const bad = /FAIL|DENIED|BLOCKED|MISMATCH|DISABLE/;
+      const rowHtml = (e) => { const d = JSON.stringify(e.detail || {}); return `<tr><td>${esc(when(e.at))}</td><td>${badge(bad.test(e.action) ? 'alert' : 'pending', e.action)}</td><td class="mono">${esc(e.actorId || '')}${e.role ? ' (' + esc(e.role) + ')' : ''}</td><td class="mono">${esc(e.ip || '')}</td><td class="mono" title="${esc(d)}">${esc(d === '{}' ? '' : d.slice(0, 140))}</td></tr>`; };
+      let items = await PC.api('GET', q());
+      const paint = () => {
+        v.innerHTML = `<div class="adm-bar"><select id="f-group" aria-label="Event type">${GROUPS.map(([k, t]) => `<option value="${k}" ${k === f.group ? 'selected' : ''}>${t}</option>`).join('')}</select>
+          <input id="f-actor" placeholder="Person ID (e.g. DOC-1003)" value="${esc(f.actor)}" style="max-width:220px" aria-label="Person ID"><button class="btn btn-ghost btn-sm" id="f-go">Search</button>
+          <span class="small muted">${items.length} events</span></div>` +
+          table(['When', 'Event', 'Who', 'IP', 'Details'], items.map(rowHtml).join('')) +
+          (items.length >= 100 && items.length % 100 === 0 ? '<p style="margin-top:.7rem"><button class="btn btn-ghost btn-sm" id="f-more">Load older events</button></p>' : '');
+        $('f-group').onchange = (e) => { f.group = e.target.value; tabs.audit(v).catch((x) => say(x.message)); };
+        const search = () => { f.actor = $('f-actor').value.trim(); tabs.audit(v).catch((x) => say(x.message)); };
+        $('f-go').onclick = search; $('f-actor').onkeydown = (e) => { if (e.key === 'Enter') search(); };
+        const more = $('f-more'); if (more) more.onclick = async () => { more.disabled = true; try { items = items.concat(await PC.api('GET', q(items[items.length - 1].id))); paint(); } catch (x) { say(x.message); } };
+      };
+      paint();
+    }
+  };
+
+  async function open(name) {
+    say('');
+    document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+    const v = $('view'); v.innerHTML = '<p class="muted small">Loading...</p>';
+    try { await tabs[name](v); v.dataset.tab = name; } catch (e) { v.innerHTML = ''; say(e.message); }
+  }
+
+  /* ---------- doctor actions ---------- */
+  async function onViewClick(e) {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const v = $('view'), act = b.dataset.act;
+    try {
+      if (act === 'add') {
+        const val = (id) => $(id).value;
+        b.disabled = true; say('');
+        const r = await PC.api('POST', '/admin/doctors', { fullName: val('d-name'), email: val('d-email'), department: val('d-dept'), licenseId: val('d-lic'), fee: Number(val('d-fee')), qualification: val('d-qual'), about: val('d-about') });
+        await open('doctors');
+        $('cred').innerHTML = `<div class="cred" role="status"><b>${esc(r.doctor.name)} was created.</b> Write these down now. The password is not shown again.<br>
+          Doctor ID: <code>${esc(r.doctor.id)}</code> &nbsp; Password: <code>${esc(r.password)}</code> <button class="btn btn-ghost btn-sm" id="cred-copy">Copy</button></div>`;
+        $('cred-copy').onclick = async () => { try { await navigator.clipboard.writeText(`Doctor ID: ${r.doctor.id}\nPassword: ${r.password}`); $('cred-copy').textContent = 'Copied'; } catch { $('cred-copy').textContent = 'Select and copy by hand'; } };
+        return;
+      }
+      if (act === 'disable') {
+        const d = (v._docs || []).find((x) => x.id === b.dataset.id); if (!d) return;
+        const warn = d.inCall ? `\n\nWARNING: ${d.name} is in a call right now. The call is not ended, but they will not be able to save a prescription.` : '';
+        const reason = prompt(`Disable ${d.name}?\n\nThey go offline now, are logged out, and cannot log in. Their waiting queue is cleared, and their upcoming booked visits are cancelled and the patients told.${warn}\n\nType a reason (optional), then press OK.`, '');
+        if (reason === null) return;
+        b.disabled = true;
+        const r = await PC.api('POST', `/admin/doctors/${encodeURIComponent(d.id)}/disable`, { reason });
+        await open('doctors');
+        say(`${d.name} is disabled.${r.cancelledBookings ? ' ' + r.cancelledBookings + ' upcoming booking(s) were cancelled and the patients told.' : ''}`, true);
+        return;
+      }
+      if (act === 'enable') {
+        const d = (v._docs || []).find((x) => x.id === b.dataset.id); if (!d || !confirm(`Enable ${d.name} again? They will need to log in and go online themselves.`)) return;
+        b.disabled = true;
+        await PC.api('POST', `/admin/doctors/${encodeURIComponent(d.id)}/enable`);
+        await open('doctors');
+        say(`${d.name} is enabled again.`, true);
+      }
+    } catch (err) { b.disabled = false; say(err.message); }
+  }
+
+  /* ---------- start ---------- */
+  if (!PC.token || !PC.user || PC.user.role !== 'admin') { showLogin(); return; }
+  PCUI.mount({ step: 0, active: 'admin' });
+  $('panel').hidden = false;
+  $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) open(b.dataset.tab); });
+  $('view').addEventListener('click', onViewClick);
+  open('overview');
+})();
+</script>
+</body>
+</html>

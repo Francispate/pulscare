@@ -1,0 +1,360 @@
+<!-- PASTE AS: public/patient.html  (replaces the old file)  Day 10: link to the medical record. -->
+<!-- PASTE AS: public/patient.html  (replaces the old file)  Day 6: waiting queue + "Doctor is ready. Join now" alert. Day 5: slot picker, slot times, cancel booking -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My care | Pulscare</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+Kannada:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: .5rem; margin-top: .8rem; }
+    .slot-btn { text-align: center; padding: .5rem .3rem; font-weight: 600; cursor: pointer; }
+    .slot-btn:disabled { background: #EEF2F4; color: #9AA7B0; border-color: #EEF2F4; cursor: not-allowed; text-decoration: line-through; }
+    .slot-btn.mine:disabled { text-decoration: none; background: var(--teal-wash); color: var(--teal-dark); border-color: var(--teal); }
+    .tabs.days { overflow-x: auto; flex-wrap: nowrap; }
+    .tabs.days .tab { white-space: nowrap; }
+  </style>
+</head>
+<body>
+<div id="chrome"></div>
+<main class="wrap">
+  <div class="row spread" style="margin-bottom:1rem">
+    <div><h1 style="font-size:1.9rem" id="hello">My care</h1><p class="muted">Doctors marked online can take your request right now.</p></div>
+    <a class="btn btn-ghost" href="/record.html">My medical record</a>
+  </div>
+
+  <div id="lang-card" style="margin-bottom:1rem"></div>
+
+  <div id="banner"></div>
+
+  <section id="slot-panel" class="card hidden" style="margin-bottom:1rem">
+    <div class="row spread"><h2 id="slot-title">Book a slot</h2><button class="btn btn-ghost btn-sm" id="slot-close">Close</button></div>
+    <p class="small muted">All times are Indian Standard Time (IST). Crossed-out slots are already taken. You can book up to 7 days ahead.</p>
+    <div class="tabs days" id="slot-days"></div>
+    <div class="slot-grid" id="slot-grid"></div>
+    <div class="field" style="margin-top:1rem"><label for="slot-reason" class="small"><b>Reason for the visit</b> (optional)</label>
+      <input id="slot-reason" maxlength="300" placeholder="For example: fever for two days"></div>
+    <div class="row"><button class="btn btn-primary" id="slot-confirm" disabled>Pick a slot</button></div>
+    <div class="msg" id="slot-msg"></div>
+  </section>
+
+  <div class="tabs">
+    <button class="tab on" id="tab-doctors">Doctors</button>
+    <button class="tab" id="tab-appts">My consultations</button>
+  </div>
+
+  <section id="view-doctors">
+    <label class="row small hidden" id="match-row" style="margin:0 0 .8rem;font-weight:600"><input type="checkbox" id="only-match" style="width:auto" checked> Show only doctors who speak my language</label>
+    <div class="grid three" id="doctor-grid"></div>
+    <div class="note-final"><b>Final version:</b> email or SMS reminders before the visit.</div>
+  </section>
+
+  <section id="view-appts" class="hidden">
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table>
+        <thead><tr><th>Doctor</th><th>When</th><th>Fee</th><th>Status</th><th>Next step</th></tr></thead>
+        <tbody id="appt-body"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="note-final"><b>Final version:</b> documents are stored in the cloud with retention rules, and medical-record uploads sit beside them.</div>
+  </section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/languages.js"></script>
+<script>
+  if (!PC.require('patient')) throw new Error('redirect');
+  PCUI.mount({ step: 3, active: 'dash' });
+  document.getElementById('hello').textContent = 'Hello, ' + PC.user.name.split(' ')[0];
+
+  const suggest = JSON.parse(sessionStorage.getItem('pc_suggest') || 'null');
+  let doctors = [], pending = null, countdown = null;
+  let myQueue = null, qTimer = null;   // Day 6: my place in a doctor's waiting queue
+  const sock = PC.socket();
+
+  let myLangs = [], onlyMatch = true;
+
+  function ranked() {
+    const list = doctors.map((d) => ({ d, m: PCLang.match(myLangs, d.languages) }));
+    // Best language fit first, then doctors who are online
+    list.sort((a, b) => (b.m.all - a.m.all) || (b.m.common.length - a.m.common.length) || (Number(b.d.online) - Number(a.d.online)) || a.d.id.localeCompare(b.d.id));
+    return list;
+  }
+
+  function renderDoctors() {
+    const all = ranked();
+    const matched = all.filter((x) => x.m.any);
+    const filtering = onlyMatch && myLangs.length > 0;
+    const list = filtering && matched.length ? matched : all;
+    const note = filtering && !matched.length
+      ? `<div class="banner" style="grid-column:1/-1"><b>No doctor speaks ${PC.esc(myLangs.join(' + '))} yet.</b> Showing all doctors. You can use the chat and typed captions during the call.</div>` : '';
+    document.getElementById('match-row').classList.toggle('hidden', !myLangs.length);
+    document.getElementById('doctor-grid').innerHTML = note + list.map(({ d, m }) => `
+      <div class="card doc-card ${suggest && suggest.doctorId === d.id ? 'suggested' : ''}">
+        <div class="row spread"><span class="dept">${PC.esc(d.department)}</span>
+          <span class="badge ${d.online ? 'online' : 'offline'}">${d.online ? 'Online' : 'Offline'}</span></div>
+        <h3>${PC.esc(d.name)}</h3>
+        <div class="small muted">${PC.esc(d.qualification)}</div>
+        <p class="small">${PC.esc(d.about)}</p>
+        <div class="small"><b>Speaks:</b> ${(d.languages || []).map((l) => m.common.some((c) => c.toLowerCase() === l.toLowerCase()) ? `<b style="color:var(--teal-dark)">${PC.esc(l)}</b>` : PC.esc(l)).join(', ') || '<span class="muted">Not set</span>'}</div>
+        ${myLangs.length ? (m.all ? '<div style="margin:.3rem 0"><span class="badge done">Speaks all your languages</span></div>' : m.any ? `<div style="margin:.3rem 0"><span class="badge pending">Speaks ${PC.esc(m.common.join(' + '))}</span></div>` : '') : ''}
+        ${suggest && suggest.doctorId === d.id ? '<div class="small" style="color:var(--teal-dark);font-weight:700">Suggested from your survey</div>' : ''}
+        ${d.online && d.busy ? `<div class="small" style="margin:.3rem 0"><span class="badge pending">In a call</span> ${d.waiting ? `${d.waiting} waiting` : 'You would be next'}</div>` : ''}
+        <div class="row spread" style="margin-top:.4rem">
+          <span class="fee">${PC.money(d.fee)}</span>
+          <div class="row">
+            <button class="btn btn-ghost btn-sm" data-slots="${d.id}">Book a slot</button>
+            <button class="btn btn-primary btn-sm" data-doc="${d.id}" ${d.online && !pending && !myQueue ? '' : 'disabled'}>${!d.online ? 'Offline' : myQueue && myQueue.doctorId === d.id ? 'In queue' : d.busy ? 'Join queue' : 'Consult now'}</button>
+          </div>
+        </div>
+      </div>`).join('');
+    document.querySelectorAll('[data-doc]').forEach((b) => b.addEventListener('click', () => request(b.dataset.doc)));
+    document.querySelectorAll('[data-slots]').forEach((b) => b.addEventListener('click', () => openSlots(b.dataset.slots)));
+  }
+  document.getElementById('only-match').onchange = (e) => { onlyMatch = e.target.checked; renderDoctors(); };
+
+  async function loadDoctors() { doctors = await PC.api('GET', '/doctors'); renderDoctors(); }
+
+  async function request(doctorId) {
+    try {
+      const symptoms = suggest ? suggest.symptoms : '';
+      const r = await PC.api('POST', '/requests', { doctorId, symptoms });
+      if (r.queued) { setQueue({ id: r.queueId, doctorId: r.doctorId, doctorName: r.doctorName, position: r.position, status: r.status, left: r.secondsLeft }); return; }
+      pending = { id: r.requestId, doctorName: r.doctorName, left: 120 };
+      renderDoctors(); renderBanner();
+      clearInterval(countdown);
+      countdown = setInterval(() => { if (!pending) return clearInterval(countdown); pending.left--; renderBanner(); if (pending.left <= 0) clearInterval(countdown); }, 1000);
+    } catch (e) { alert(e.message); }
+  }
+
+  function renderBanner(extra) {
+    const b = document.getElementById('banner');
+    if (extra) { b.innerHTML = extra; return; }
+    if (myQueue) {
+      const q = myQueue;
+      b.innerHTML = q.status === 'notified'
+        ? `<div class="banner go"><div class="row spread"><span><b>${PC.esc(q.doctorName)} is ready. Join now.</b> Your turn ends in <b id="q-left"></b>.</span>
+            <span class="row"><button class="btn btn-primary" id="q-join">Join now</button><button class="btn btn-ghost btn-sm" id="q-leave">Leave queue</button></span></div></div>`
+        : `<div class="banner wait"><div class="row spread"><span><b>${PC.esc(q.doctorName)} is with another patient. You are #${q.position} in the queue.</b> Keep this page open. You will get an alert the moment it is your turn.</span>
+            <button class="btn btn-ghost btn-sm" id="q-leave">Leave queue</button></div></div>`;
+      const j = document.getElementById('q-join'); if (j) j.onclick = joinNow;
+      const l = document.getElementById('q-leave'); if (l) l.onclick = leaveQueue;
+      paintLeft(); return;
+    }
+    if (!pending) { b.innerHTML = ''; return; }
+    const m = Math.floor(pending.left / 60), s = String(pending.left % 60).padStart(2, '0');
+    b.innerHTML = `<div class="banner wait"><b>Request sent to ${PC.esc(pending.doctorName)}.</b> Waiting for the doctor to accept. This request expires in ${m}:${s}.</div>`;
+  }
+
+  // ---------- Waiting queue (Day 6) ----------
+  const fmtLeft = (n) => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+  function paintLeft() { const el = document.getElementById('q-left'); if (el && myQueue) el.textContent = fmtLeft(Math.max(0, myQueue.left || 0)); }
+  function stopQTimer() { clearInterval(qTimer); qTimer = null; }
+  function startQTimer(seconds) {
+    stopQTimer(); myQueue.left = seconds;
+    qTimer = setInterval(() => {
+      if (!myQueue) return stopQTimer();
+      myQueue.left--; paintLeft();
+      if (myQueue.left <= -3) { stopQTimer(); loadMyQueue(); }      // the server decides; this just re-checks
+    }, 1000);
+  }
+  function beep() {
+    try {
+      const c = new (window.AudioContext || window.webkitAudioContext)();
+      [784, 1046, 784, 1046].forEach((f, i) => { const o = c.createOscillator(), g = c.createGain(); o.frequency.value = f; g.gain.value = 0.12; o.connect(g); g.connect(c.destination); o.start(c.currentTime + i * 0.22); o.stop(c.currentTime + i * 0.22 + 0.18); });
+    } catch (e) { /* sound is optional */ }
+  }
+  function setQueue(e) {
+    const wasNotified = myQueue && myQueue.status === 'notified';
+    myQueue = { id: e.id, doctorId: e.doctorId, doctorName: e.doctorName, position: e.position || 1, status: e.status || 'waiting', left: e.left };
+    if (myQueue.status === 'notified') { startQTimer(e.left != null ? e.left : 120); document.title = 'Doctor is ready! | Pulscare'; if (!wasNotified) beep(); }
+    else { stopQTimer(); document.title = 'My care | Pulscare'; }
+    renderDoctors(); renderBanner();
+  }
+  function clearQueueUi(message) { stopQTimer(); myQueue = null; document.title = 'My care | Pulscare'; renderDoctors(); renderBanner(message); }
+  async function loadMyQueue() {
+    try {
+      const r = await PC.api('GET', '/queue/mine');
+      if (r.entry) setQueue({ id: r.entry.queueId, doctorId: r.entry.doctorId, doctorName: r.entry.doctorName, position: r.entry.position, status: r.entry.status, left: r.entry.secondsLeft });
+      else if (myQueue) clearQueueUi(`<div class="banner"><b>Your turn has passed.</b> You can join the queue again.</div>`);
+    } catch (e) { /* ignore */ }
+  }
+  async function joinNow() {
+    if (!myQueue) return;
+    const b = document.getElementById('q-join'); if (b) b.disabled = true;
+    try { const r = await PC.api('POST', `/queue/${myQueue.id}/join`); location.href = `/consult.html?a=${r.appointmentId}`; }
+    catch (e) { alert(e.message); loadMyQueue(); }
+  }
+  async function leaveQueue() {
+    if (!myQueue) return;
+    try { await PC.api('POST', `/queue/${myQueue.id}/leave`); } catch (e) { /* already gone */ }
+    clearQueueUi(`<div class="banner"><b>You left the queue.</b></div>`);
+  }
+
+  // ---------- Slot booking ----------
+  const IST = 'Asia/Kolkata';
+  const fmtDate = (iso) => new Date(iso).toLocaleDateString('en-IN', { timeZone: IST, weekday: 'short', day: 'numeric', month: 'short' });
+  const fmtTime = (iso) => new Date(iso).toLocaleTimeString('en-IN', { timeZone: IST, hour: 'numeric', minute: '2-digit' });
+  const fmtFull = (iso) => new Date(iso).toLocaleString('en-IN', { timeZone: IST, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const dayLabel = (date) => fmtDate(date + 'T12:00:00+05:30');
+  let slotDoc = null, slotData = null, slotDay = null, slotPick = null;
+  const slotMsg = (t, k) => { const m = document.getElementById('slot-msg'); m.textContent = t || ''; m.className = 'msg ' + (k || ''); };
+
+  async function openSlots(doctorId) {
+    slotDoc = doctors.find((d) => d.id === doctorId); if (!slotDoc) return;
+    slotPick = null; slotDay = null; slotMsg('');
+    const panel = document.getElementById('slot-panel');
+    panel.classList.remove('hidden');
+    document.getElementById('slot-title').textContent = 'Book a slot with ' + slotDoc.name;
+    await loadSlots();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function loadSlots() {
+    if (!slotDoc) return;
+    try { slotData = await PC.api('GET', `/doctors/${slotDoc.id}/slots`); }
+    catch (e) { slotMsg(e.message, 'err'); return; }
+    if (!slotData.days.some((d) => d.date === slotDay)) {
+      const firstFree = slotData.days.find((d) => d.slots.some((s) => !s.booked));
+      slotDay = (firstFree || slotData.days[0] || {}).date || null;
+    }
+    if (slotPick && !slotData.days.some((d) => d.slots.some((s) => s.id === slotPick.id && !s.booked))) {
+      slotPick = null; slotMsg('The slot you picked was just taken. Please choose another.', 'err');
+    }
+    renderSlots();
+  }
+
+  function renderSlots() {
+    const days = document.getElementById('slot-days'), grid = document.getElementById('slot-grid'), btn = document.getElementById('slot-confirm');
+    if (!slotData.days.length) {
+      days.innerHTML = ''; grid.innerHTML = '<p class="muted small">This doctor has no open slots in the next 7 days.</p>';
+      btn.disabled = true; btn.textContent = 'No slots available'; return;
+    }
+    days.innerHTML = slotData.days.map((d) => `<button class="tab ${d.date === slotDay ? 'on' : ''}" data-day="${d.date}">${PC.esc(dayLabel(d.date))} · ${d.slots.filter((s) => !s.booked).length} free</button>`).join('');
+    days.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => { slotDay = b.dataset.day; renderSlots(); }));
+    const day = slotData.days.find((d) => d.date === slotDay);
+    grid.innerHTML = day.slots.map((s) => `<button class="chip slot-btn ${s.mine ? 'mine' : ''} ${slotPick && slotPick.id === s.id ? 'on' : ''}" data-slot="${s.id}" ${s.booked ? 'disabled' : ''}>${PC.esc(fmtTime(s.startsAt))}${s.mine ? '<div class="small">Yours</div>' : ''}</button>`).join('');
+    grid.querySelectorAll('[data-slot]').forEach((b) => b.addEventListener('click', () => {
+      slotPick = day.slots.find((s) => s.id === b.dataset.slot); slotMsg(''); renderSlots();
+    }));
+    btn.disabled = !slotPick;
+    btn.textContent = slotPick ? `Book ${fmtFull(slotPick.startsAt)} IST` : 'Pick a slot';
+  }
+
+  document.getElementById('slot-close').onclick = () => { document.getElementById('slot-panel').classList.add('hidden'); slotDoc = null; slotPick = null; };
+  document.getElementById('slot-confirm').onclick = async () => {
+    if (!slotPick) return;
+    const btn = document.getElementById('slot-confirm'); btn.disabled = true; slotMsg('Booking...');
+    try {
+      const r = await PC.api('POST', `/slots/${slotPick.id}/book`, { reason: document.getElementById('slot-reason').value });
+      document.getElementById('slot-panel').classList.add('hidden');
+      document.getElementById('slot-reason').value = '';
+      slotDoc = null; slotPick = null; slotMsg('');
+      renderBanner(`<div class="banner go"><b>Booked with ${PC.esc(r.doctorName)} for ${PC.esc(fmtFull(r.startsAt))} IST.</b> The room opens 10 minutes before your slot. You can find it under My consultations.</div>`);
+      setTab(true);
+    } catch (e) {
+      slotMsg(e.message, 'err'); slotPick = null;
+      await loadSlots();
+      slotMsg(e.message, 'err');
+    }
+  };
+
+  async function cancelSlot(slotId) {
+    if (!confirm('Cancel this booking? The slot becomes free for other patients.')) return;
+    try { await PC.api('POST', `/slots/${slotId}/cancel`); loadAppts(); if (slotDoc) loadSlots(); }
+    catch (e) { alert(e.message); loadAppts(); }
+  }
+  window.cancelSlot = cancelSlot;
+
+  async function loadAppts() {
+    const rows = await PC.api('GET', '/appointments');
+    const body = document.getElementById('appt-body');
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="muted">No consultations yet. Choose an online doctor, or book a slot.</td></tr>'; return; }
+    const now = Date.now();
+    body.innerHTML = rows.map((a) => {
+      let status, action;
+      const startMs = a.slot_starts_at ? new Date(a.slot_starts_at).getTime() : 0;
+      if (a.status === 'completed') {
+        status = '<span class="badge done">Completed and paid</span>';
+        action = `<button class="btn btn-ghost btn-sm" onclick="PC.openDoc('${a.id}','prescription')">Prescription</button>
+                  <button class="btn btn-ghost btn-sm" onclick="PC.openDoc('${a.id}','invoice')">Invoice ${PC.esc(a.invoice_no || '')}</button>`;
+      } else if (a.status === 'awaiting_payment') {
+        status = '<span class="badge pending">Awaiting payment</span>';
+        action = `<a class="btn btn-primary btn-sm" href="/payment.html?a=${a.id}">Pay now</a>`;
+      } else if (a.slot_id && a.status === 'booked' && now < startMs - 600000) {
+        status = '<span class="badge pending">Slot booked</span>';
+        action = `<span class="small muted">Room opens at ${PC.esc(fmtTime(new Date(startMs - 600000).toISOString()))}</span>
+                  ${now < startMs ? `<button class="btn btn-ghost btn-sm" onclick="cancelSlot('${a.slot_id}')">Cancel</button>` : ''}`;
+      } else {
+        status = `<span class="badge pending">${a.status === 'booked' ? 'Ready to join' : 'In progress'}</span>`;
+        action = `<a class="btn btn-primary btn-sm" href="/consult.html?a=${a.id}">Join call</a>
+                  ${a.slot_id && a.status === 'booked' && now < startMs ? `<button class="btn btn-ghost btn-sm" onclick="cancelSlot('${a.slot_id}')">Cancel</button>` : ''}`;
+      }
+      const when = a.slot_starts_at ? `<b>${PC.esc(fmtFull(a.slot_starts_at))}</b><div class="small muted">Booked slot (IST)${a.reason ? ' · ' + PC.esc(a.reason) : ''}</div>`
+        : new Date(a.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      return `<tr><td><b>${PC.esc(a.doctor_name)}</b><div class="small muted">${PC.esc(a.department)}</div></td>
+        <td class="small">${when}</td>
+        <td>${PC.money(a.fee)}</td><td>${status}</td><td><div class="row">${action}</div></td></tr>`;
+    }).join('');
+  }
+
+  sock.on('queue:state', ({ doctorId, busy, waiting }) => { const d = doctors.find((x) => x.id === doctorId); if (d) { d.busy = busy; d.waiting = waiting; renderDoctors(); } });
+  sock.on('queue:update', (u) => {
+    if (!myQueue || u.queueId !== myQueue.id) return;
+    if (u.status === 'waiting' || u.status === 'notified') {
+      const was = myQueue.status; myQueue.position = u.position;
+      if (u.status === 'notified' && was !== 'notified') setQueue({ ...myQueue, status: 'notified', left: u.secondsLeft }); else { myQueue.status = u.status; renderBanner(); }
+      return;
+    }
+    const name = myQueue.doctorName;
+    clearQueueUi(u.status === 'expired'
+      ? `<div class="banner"><b>Your turn with ${PC.esc(name)} passed</b> because you did not join in time. You can join the queue again.</div>`
+      : u.reason === 'doctor' ? `<div class="banner"><b>${PC.esc(name)} removed you from the queue.</b> You can choose another doctor.</div>`
+      : `<div class="banner"><b>${PC.esc(name)} went offline, so the queue was closed.</b> You can choose another doctor.</div>`);
+  });
+  sock.on('queue:turn', (t) => {
+    setQueue({ id: t.queueId, doctorId: t.doctorId, doctorName: t.doctorName, position: 1, status: 'notified', left: t.seconds });
+  });
+  sock.on('slot:update', ({ doctorId }) => { if (slotDoc && slotDoc.id === doctorId) loadSlots(); });
+  sock.on('slot:cancelled', (c) => {
+    renderBanner(`<div class="banner"><b>Your visit on ${PC.esc(fmtFull(c.startsAt))} IST was cancelled by the doctor.</b> You can book another slot.</div>`);
+    loadAppts();
+  });
+  setInterval(() => { if (!document.getElementById('view-appts').classList.contains('hidden')) loadAppts().catch(() => {}); }, 30000);
+  sock.on('presence:update', ({ doctorId, online }) => { const d = doctors.find((x) => x.id === doctorId); if (d) { d.online = online; renderDoctors(); } });
+  sock.on('request:update', (u) => {
+    if (!pending || u.requestId !== pending.id) return;
+    clearInterval(countdown);
+    const name = pending.doctorName; pending = null; renderDoctors();
+    if (u.status === 'accepted') {
+      renderBanner(`<div class="banner go"><div class="row spread"><span><b>${PC.esc(name)} accepted your request.</b> Your private room is ready.</span>
+        <a class="btn btn-primary btn-sm" href="/consult.html?a=${u.appointmentId}">Join call</a></div></div>`);
+      loadAppts();
+    } else renderBanner(`<div class="banner"><b>${PC.esc(name)} ${u.status === 'rejected' ? 'is unable to take this request.' : 'did not respond in time.'}</b> You can choose another doctor.</div>`);
+  });
+
+  function setTab(appts) {
+    document.getElementById('tab-doctors').classList.toggle('on', !appts); document.getElementById('tab-appts').classList.toggle('on', appts);
+    document.getElementById('view-doctors').classList.toggle('hidden', appts); document.getElementById('view-appts').classList.toggle('hidden', !appts);
+    if (appts) loadAppts();
+  }
+  document.getElementById('tab-doctors').onclick = () => setTab(false);
+  document.getElementById('tab-appts').onclick = () => setTab(true);
+  if (location.hash === '#appts') setTab(true);
+
+  (async () => {
+    myLangs = await PCLang.get();
+    // Asks for languages straight after login; afterwards it shows them with a Change button
+    PCLang.mountEditor(document.getElementById('lang-card'), { role: 'patient', current: myLangs, startOpen: !myLangs.length,
+      onSaved: (l) => { myLangs = l; onlyMatch = true; document.getElementById('only-match').checked = true; renderDoctors(); } });
+    await loadDoctors();
+    loadMyQueue();
+  })();
+  loadAppts();
+</script>
+</body>
+</html>

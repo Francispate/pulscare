@@ -1,0 +1,23 @@
+{
+  "name": "pulscare-prototype",
+  "version": "0.3.0",
+  "description": "Pulscare Tele-Health 30% client prototype (local only)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "bcryptjs": "2.4.3",
+    "dotenv": "16.4.7",
+    "express": "4.22.3",
+    "jsonwebtoken": "9.0.2",
+    "pdfkit": "0.16.0",
+    "qrcode": "1.5.4",
+    "socket.io": "4.8.1"
+  }
+}

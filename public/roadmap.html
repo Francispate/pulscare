@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roadmap | Pulscare</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="chrome"></div>
+<main class="wrap">
+  <h1 style="font-size:2.2rem">From this prototype to the finished product</h1>
+  <p class="muted" style="max-width:62ch;margin:.6rem 0 1.6rem">You have just seen the full patient journey working end to end on a local server. This page explains what each step does today, and what we add to make it safe for real patients.</p>
+
+  <section class="card" style="margin-bottom:1.4rem">
+    <h2>The end result</h2>
+    <p style="max-width:70ch">A patient describes symptoms in their own language, meets an available specialist on encrypted video with live subtitles, pays once the call ends, and instantly receives a signed prescription and a numbered invoice. The doctor sees requests live and writes the prescription during the call. Every step is logged, secured, and works on a phone or a laptop.</p>
+  </section>
+
+  <section class="card" style="padding:0;overflow-x:auto;margin-bottom:1.4rem">
+    <table class="road-table">
+      <thead><tr><th>Step</th><th class="col-30">Prototype (what you saw)</th><th class="col-100">Added in the final version</th><th>What the user gets</th></tr></thead>
+      <tbody id="steps-body"></tbody>
+    </table>
+  </section>
+
+  <h2 style="margin-bottom:.8rem">Three stages of delivery</h2>
+  <section class="card" style="padding:0;overflow-x:auto;margin-bottom:1.4rem">
+    <table class="road-table">
+      <thead><tr><th>Area</th><th class="col-30">30%: this prototype</th><th class="col-70">70%: complete demo build</th><th class="col-100">100%: production build</th></tr></thead>
+      <tbody>
+        <tr><td>Hosting</td><td class="col-30">Runs on one laptop (localhost)</td><td class="col-70">Online: Netlify + Supabase, shareable link</td><td class="col-100">Separate frontend, backend (Render) and database</td></tr>
+        <tr><td>Database</td><td class="col-30">Local SQLite file</td><td class="col-70">Hosted Postgres with row-level security</td><td class="col-100">Plus audit logs, consent records, retention rules</td></tr>
+        <tr><td>Payments</td><td class="col-30">Simulated gateway, real server checks</td><td class="col-70">Razorpay test mode, UPI QR, admin approval</td><td class="col-100">Razorpay webhook backup, reconciliation</td></tr>
+        <tr><td>Documents</td><td class="col-30">Server PDFs, prototype signature</td><td class="col-70">Invoice PDF in the browser, prescription view</td><td class="col-100">Server-stored, tamper-proof, licensed signature</td></tr>
+        <tr><td>Video</td><td class="col-30">Direct browser-to-browser</td><td class="col-70">Jitsi room with random name</td><td class="col-100">Token-secured rooms (only the two participants)</td></tr>
+        <tr><td>Chat encryption</td><td class="col-30">Per-call keys in the browser tab</td><td class="col-70">Per-appointment keys</td><td class="col-100">Long-term keys, fingerprint check, key backup</td></tr>
+        <tr><td>Languages and captions</td><td class="col-30">Live captions with a history panel. Patients are matched to doctors by spoken language (English, Hindi, Kannada, mixes, or their own)</td><td class="col-70">Interface in 3 languages, doctor language profiles managed by an admin</td><td class="col-100">Managed speech service with a medical word list, captions saved to the record with consent</td></tr>
+        <tr><td>Scheduling</td><td class="col-30">On-demand only</td><td class="col-70">On-demand only</td><td class="col-100">Doctor slots and booking calendar</td></tr>
+        <tr><td>Admin and alerts</td><td class="col-30">Not included</td><td class="col-70">Admin approvals page</td><td class="col-100">Admin dashboard, email and SMS reminders</td></tr>
+        <tr><td>Quality</td><td class="col-30">Manual rehearsal</td><td class="col-70">Manual rehearsal on two laptops</td><td class="col-100">Automated tests and CI, compliance checklist</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Honest limits of this prototype</h2>
+    <p class="small" style="max-width:72ch">Payment is simulated and the signature is ours, so the prescription is marked as a prototype and is not a valid medical document. Chat keys disappear if the browser tab is reloaded. Live captions use the browser's speech recognition, which sends audio to the browser maker, so they are not end-to-end private. The final version addresses each of these.</p>
+  </section>
+</main>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/ui.js"></script>
+<script>
+  PCUI.mount({ step: 0, active: 'roadmap' });
+  document.getElementById('steps-body').innerHTML = PC_STEPS.map((s) =>
+    `<tr><td>${s.name}</td><td class="col-30">${s.proto}</td><td class="col-100">${s.final}</td><td>${s.result}</td></tr>`).join('');
+</script>
+</body>
+</html>

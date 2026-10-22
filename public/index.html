@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pulscare Tele-Health</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+Kannada:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="chrome"></div>
+
+<main class="wrap">
+  <div id="signed-in" class="banner go hidden"></div>
+
+  <section class="hero">
+    <div>
+      <h1>Speak to a doctor tonight, in the language you think in.</h1>
+      <p class="lead">Pick your symptoms, meet a specialist on video, pay once the call ends, and get your prescription and invoice as two separate, signed documents.</p>
+      <div class="note-live"><b>Client preview.</b> Everything you click here talks to a real local server and database. The strip above shows each backend step, and the button at the bottom right shows server activity as it happens.</div>
+      <div class="card" style="margin-top:1.1rem">
+        <h3>Demo accounts</h3>
+        <p class="small muted">Patient: <b>demo@pulscare.test</b> / <b>patient123</b><br>Doctor: choose any doctor in the dropdown / <b>doctor123</b></p>
+      </div>
+    </div>
+
+    <div class="card hero-card" id="triage">
+      <h2 data-i18n="survey_title">Tell us how you feel</h2>
+      <div class="field" style="margin-top:.8rem">
+        <label data-i18n="choose_lang">Choose your language</label>
+        <div class="pill-row" id="lang-pills">
+          <button class="pill on" data-lang="en">English</button>
+          <button class="pill" data-lang="hi">हिन्दी</button>
+          <button class="pill" data-lang="kn">ಕನ್ನಡ</button>
+        </div>
+      </div>
+      <label data-i18n="pick_symptoms">Select your symptoms</label>
+      <div class="chips" id="symptoms"></div>
+      <div class="suggest" id="suggest"><span class="muted" data-i18n="none_yet">Select a symptom to see a suggested specialist.</span></div>
+      <a href="#signin" class="btn btn-primary" style="width:100%;margin-top:1rem" data-i18n="continue">Continue to sign in</a>
+    </div>
+  </section>
+
+  <section id="signin" class="auth-grid">
+    <div class="card">
+      <div class="tabs">
+        <button class="tab on" id="tab-login">Patient log in</button>
+        <button class="tab" id="tab-register">New patient</button>
+      </div>
+      <div id="form-login">
+        <div class="field"><label for="l-email">Email</label><input id="l-email" type="email" autocomplete="username" placeholder="demo@pulscare.test"></div>
+        <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password"></div>
+        <button class="btn btn-primary" id="btn-login" style="width:100%">Log in</button>
+      </div>
+      <div id="form-register" class="hidden">
+        <div class="field"><label for="r-name">Full name</label><input id="r-name" autocomplete="name"></div>
+        <div class="field"><label for="r-email">Email</label><input id="r-email" type="email" autocomplete="email"></div>
+        <div class="field"><label for="r-phone">Phone (optional)</label><input id="r-phone" type="tel" autocomplete="tel"></div>
+        <div class="field"><label for="r-pass">Password (6+ characters)</label><input id="r-pass" type="password" autocomplete="new-password"></div>
+        <button class="btn btn-primary" id="btn-register" style="width:100%">Create account</button>
+      </div>
+      <div class="msg" id="patient-msg" role="alert"></div>
+      <div class="note-final"><b>Final version:</b> email verification and login rate limits.</div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:.9rem">Doctor log in</h2>
+      <div class="field"><label for="d-select">Doctor</label><select id="d-select"></select></div>
+      <div class="field"><label for="d-pass">Password</label><input id="d-pass" type="password" autocomplete="current-password" placeholder="doctor123"></div>
+      <button class="btn btn-primary" id="btn-doctor" style="width:100%">Log in as doctor</button>
+      <div class="msg" id="doctor-msg" role="alert"></div>
+      <div class="note-final"><b>Final version:</b> doctor schedules and an admin panel that approves doctors.</div>
+    </div>
+  </section>
+
+  <section id="help-steps" class="help-steps" aria-labelledby="help-title">
+    <style>
+      .help-steps{display:grid;grid-template-columns:1.2fr 1fr;gap:1.1rem;margin-top:1.4rem}
+      .help-steps ol{list-style:none;counter-reset:h;display:grid;gap:.7rem;margin-top:.8rem}
+      .help-steps li{counter-increment:h;display:grid;grid-template-columns:30px 1fr;gap:.7rem;align-items:start}
+      .help-steps li::before{content:counter(h);width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;font-weight:700;display:grid;place-items:center}
+      .help-steps .sos-card-info li::before{background:#D93D45}
+      .help-steps .sos-card-info{border-top:5px solid #D93D45}
+      @media(max-width:880px){.help-steps{grid-template-columns:1fr}}
+    </style>
+    <div class="card">
+      <h2 id="help-title">Not sure what to click? Use the Help button</h2>
+      <p class="small muted">It is on every page, so you are never stuck.</p>
+      <ol>
+        <li><span>Look for the green <b>Need help?</b> button at the bottom left of the screen.</span></li>
+        <li><span>Press it. A box opens with the steps for the page you are on.</span></li>
+        <li><span>Read the steps in order. Press <b>Show me</b> next to a step and the page scrolls to the right button and highlights it.</span></li>
+        <li><span>Still stuck? Use the email at the bottom of the Help box and tell us the page you were on.</span></li>
+      </ol>
+      <button class="btn btn-primary" style="margin-top:1rem" data-open-help>Try the Help button now</button>
+    </div>
+    <div class="card sos-card-info">
+      <h2>In a medical emergency</h2>
+      <p class="small muted">Do not wait for an online doctor.</p>
+      <ol>
+        <li><span>Press the red <b>SOS</b> button at the top right of any page.</span></li>
+        <li><span>Call <b>112</b> or the <b>108</b> ambulance straight from the box.</span></li>
+        <li><span>Allow your location. We show the nearest hospitals and open Google Maps with directions.</span></li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/i18n.js"></script>
+<script src="/js/ui.js"></script>
+<script>
+  PCUI.mount({ step: 1, active: 'home' });
+
+  const SYMPTOMS = [
+    { k: 's_fever', en: 'Fever and cold', doc: 'DOC-1003' }, { k: 's_chest', en: 'Chest pain', doc: 'DOC-1001' },
+    { k: 's_stomach', en: 'Stomach pain', doc: 'DOC-1003' }, { k: 's_child', en: 'Child unwell', doc: 'DOC-1005' },
+    { k: 's_preg', en: 'Pregnancy care', doc: 'DOC-1004' }, { k: 's_urine', en: 'Urinary problem', doc: 'DOC-1002' },
+    { k: 's_injury', en: 'Injury or lump', doc: 'DOC-1006' }, { k: 's_other', en: 'Something else', doc: 'DOC-1003' }
+  ];
+  // The most urgent / specific complaint wins when several are chosen.
+  const PRIORITY = ['s_chest', 's_child', 's_preg', 's_urine', 's_injury', 's_stomach', 's_fever', 's_other'];
+  let doctors = [], chosen = new Set();
+
+  function renderSymptoms() {
+    document.getElementById('symptoms').innerHTML = SYMPTOMS.map((s) =>
+      `<button class="chip ${chosen.has(s.k) ? 'on' : ''}" data-k="${s.k}">${I18N.t(s.k)}</button>`).join('');
+    document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => {
+      chosen.has(c.dataset.k) ? chosen.delete(c.dataset.k) : chosen.add(c.dataset.k);
+      renderSymptoms(); renderSuggestion();
+    }));
+  }
+
+  function renderSuggestion() {
+    const box = document.getElementById('suggest');
+    if (!chosen.size) { box.innerHTML = `<span class="muted">${I18N.t('none_yet')}</span>`; sessionStorage.removeItem('pc_suggest'); return; }
+    const top = PRIORITY.find((k) => chosen.has(k));
+    const docId = SYMPTOMS.find((s) => s.k === top).doc;
+    const d = doctors.find((x) => x.id === docId);
+    if (!d) return;
+    box.innerHTML = `<div class="small muted">${I18N.t('suggested')}</div><b>${PC.esc(d.name)}</b><div class="small">${PC.esc(d.department)} &middot; ${PC.money(d.fee)}
+      &middot; <span class="badge ${d.online ? 'online' : 'offline'}">${d.online ? 'Online' : 'Offline'}</span></div>`;
+    sessionStorage.setItem('pc_suggest', JSON.stringify({
+      doctorId: docId, symptoms: SYMPTOMS.filter((s) => chosen.has(s.k)).map((s) => s.en).join(', ')
+    }));
+  }
+
+  document.querySelectorAll('#lang-pills .pill').forEach((p) => p.addEventListener('click', () => {
+    document.querySelectorAll('#lang-pills .pill').forEach((x) => x.classList.remove('on'));
+    p.classList.add('on'); I18N.set(p.dataset.lang); renderSymptoms(); renderSuggestion();
+  }));
+  const savedLang = sessionStorage.getItem('pc_lang');
+  if (savedLang && savedLang !== 'en') document.querySelector(`#lang-pills [data-lang="${savedLang}"]`).click();
+
+  PC.api('GET', '/doctors').then((rows) => {
+    doctors = rows;
+    document.getElementById('d-select').innerHTML = rows.map((d) => `<option value="${d.id}">${PC.esc(d.name)} (${PC.esc(d.department)})</option>`).join('');
+    renderSuggestion();
+  });
+  renderSymptoms();
+
+  // Already signed in?
+  if (PC.user) {
+    const b = document.getElementById('signed-in');
+    b.classList.remove('hidden');
+    b.innerHTML = `You are signed in as <b>${PC.esc(PC.user.name)}</b>. <a href="/${PC.user.role}.html">Continue to your ${PC.user.role} page</a>`;
+  }
+
+  // Patient tabs
+  const tl = document.getElementById('tab-login'), tr = document.getElementById('tab-register');
+  function tab(reg) {
+    tl.classList.toggle('on', !reg); tr.classList.toggle('on', reg);
+    document.getElementById('form-login').classList.toggle('hidden', reg);
+    document.getElementById('form-register').classList.toggle('hidden', !reg);
+    document.getElementById('patient-msg').textContent = '';
+  }
+  tl.onclick = () => tab(false); tr.onclick = () => tab(true);
+
+  function fail(id, e) { const m = document.getElementById(id); m.className = 'msg err'; m.textContent = e.message; }
+
+  document.getElementById('btn-login').onclick = async () => {
+    try {
+      const r = await PC.api('POST', '/auth/login', { email: document.getElementById('l-email').value, password: document.getElementById('l-pass').value });
+      PC.setSession(r.token, r.user); location.href = '/patient.html';
+    } catch (e) { fail('patient-msg', e); }
+  };
+  document.getElementById('btn-register').onclick = async () => {
+    try {
+      const r = await PC.api('POST', '/auth/register', {
+        fullName: document.getElementById('r-name').value, email: document.getElementById('r-email').value,
+        phone: document.getElementById('r-phone').value, password: document.getElementById('r-pass').value, language: I18N.lang
+      });
+      PC.setSession(r.token, r.user); location.href = '/patient.html';
+    } catch (e) { fail('patient-msg', e); }
+  };
+  document.getElementById('btn-doctor').onclick = async () => {
+    try {
+      const r = await PC.api('POST', '/auth/doctor-login', { doctorId: document.getElementById('d-select').value, password: document.getElementById('d-pass').value });
+      PC.setSession(r.token, r.user); location.href = '/doctor.html';
+    } catch (e) { fail('doctor-msg', e); }
+  };
+  ['l-pass', 'r-pass', 'd-pass'].forEach((id) => document.getElementById(id).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById({ 'l-pass': 'btn-login', 'r-pass': 'btn-register', 'd-pass': 'btn-doctor' }[id]).click();
+  }));
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!-- PASTE AS: public/verify.html  (replaces the old file)  Day 8: clear "Not valid" result, covers both the data check and the PDF file check. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Verify prescription | Pulscare</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="chrome"></div>
+<main class="wrap" style="max-width:640px">
+  <div class="card" id="result"><p class="muted">Checking the signature...</p></div>
+</main>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/ui.js"></script>
+<script>
+  PCUI.mount({ step: 8 });
+  const h = new URLSearchParams(location.search).get('h');
+  const el = document.getElementById('result');
+  (async () => {
+    if (!h) { el.innerHTML = '<h2>No signature supplied</h2><p>Scan the QR code on a Pulscare prescription to open this page.</p>'; return; }
+    let r;
+    try { r = await PC.api('GET', '/verify/' + encodeURIComponent(h)); }
+    catch (e) { el.innerHTML = '<span class="badge pending">Could not check</span><h2 style="margin-top:.6rem">We could not reach the server</h2><p>Check your connection and try again.</p>'; return; }
+    if (!r.valid) {
+      el.innerHTML = `<span class="badge alert">Not valid</span><h2 style="margin-top:.6rem">This prescription is NOT valid</h2>
+        <p>${PC.esc(r.reason || 'The content does not match its signature, so it may have been changed.')}</p>
+        <p class="small muted" style="margin-top:.8rem">Do not rely on this document. Ask the doctor or Pulscare support for a new, verified copy.</p>`;
+      return;
+    }
+    el.innerHTML = `<span class="badge done">Valid</span>
+      <h2 style="margin:.6rem 0">This prescription is genuine and unaltered</h2>
+      <table><tbody>
+        <tr><td class="muted">Prescription</td><td><b>${PC.esc(r.rxId)}</b></td></tr>
+        <tr><td class="muted">Doctor</td><td>${PC.esc(r.doctor)}</td></tr>
+        <tr><td class="muted">Patient</td><td>${PC.esc(r.patient)}</td></tr>
+        <tr><td class="muted">Issued</td><td>${PC.esc(r.issuedAt)}</td></tr>
+        <tr><td class="muted">Signed by</td><td>${PC.esc(r.signedBy)}</td></tr>
+      </tbody></table>
+      <p class="small muted" style="margin-top:1rem">Two checks passed: the server recalculated the SHA-256 seal from the stored prescription and it matches the one printed on the PDF, and the stored PDF file is exactly the one that was issued.</p>
+      <div class="note-final"><b>Final version:</b> signed with the doctor’s licensed digital certificate.</div>`;
+  })();
+</script>
+</body>
+</html>
